@@ -1,0 +1,69 @@
+name: ci
+on: [push, pull_request]
+permissions: {contents: read}
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env: {POSTGRES_USER: ci, POSTGRES_PASSWORD: ci, POSTGRES_DB: ci}
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U ci" --health-interval 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+      mongo:
+        image: mongo:7
+        ports: ["27017:27017"]
+      mailhog:
+        image: mailhog/mailhog:latest
+        ports: ["1025:1025", "8025:8025"]
+      stripe-mock:
+        image: stripe/stripe-mock:latest
+        ports: ["12111:12111"]
+      livekit:
+        image: livekit/livekit-server:latest
+        env:
+          LIVEKIT_KEYS: "devkey: ci-livekit-secret-at-least-32-bytes!!"
+        ports: ["7880:7880"]
+    env:
+      TEST_POSTGRES_URL: postgres://ci:ci@localhost:5432/ci?sslmode=disable
+      TEST_REDIS_URL: redis://localhost:6379
+      TEST_MONGO_URL: mongodb://localhost:27017/ci
+      TEST_SMTP_HOST: 127.0.0.1
+      TEST_SMTP_PORT: "1025"
+      TEST_MAILHOG_API: http://127.0.0.1:8025
+      TEST_STRIPE_MOCK_URL: http://127.0.0.1:12111
+      TEST_LIVEKIT_URL: ws://127.0.0.1:7880
+      TEST_LIVEKIT_SECRET: ci-livekit-secret-at-least-32-bytes!!
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: {go-version-file: backend/go.mod}
+      - run: cd backend && go vet ./... && go test ./... -count=1
+      - name: Known-vulnerability scan (fails if our code reaches a vulnerable symbol)
+        run: cd backend && go install golang.org/x/vuln/cmd/govulncheck@latest && $(go env GOPATH)/bin/govulncheck ./...
+  ai-service:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: cd ai-service && pip install -r requirements.txt pytest pip-audit && pytest -q
+      - run: cd ai-service && pip-audit -r requirements.txt
+  realtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22}
+      - run: cd realtime && npm ci && npm test
+      - run: cd realtime && npm audit --omit=dev
+  mobile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: {channel: stable}
+      - run: cd mobile && flutter pub get && flutter analyze && flutter test

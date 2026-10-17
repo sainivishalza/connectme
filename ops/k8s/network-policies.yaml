@@ -1,0 +1,83 @@
+# Default deny, then open only what each service needs.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: connectme}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-dns, namespace: connectme}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector: {}
+          podSelector: {matchLabels: {k8s-app: kube-dns}}
+      ports: [{port: 53, protocol: UDP}, {port: 53, protocol: TCP}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: api-ingress, namespace: connectme}
+spec:
+  podSelector: {matchLabels: {app: connectme-api}}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: ingress-nginx}}
+        - podSelector: {matchLabels: {app: connectme-realtime}}
+      ports: [{port: 8080}]
+    # Metrics are scrapeable only from the monitoring namespace.
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: monitoring}}
+      ports: [{port: 9464}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: realtime-ingress, namespace: connectme}
+spec:
+  podSelector: {matchLabels: {app: connectme-realtime}}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: ingress-nginx}}
+      ports: [{port: 3001}]
+---
+# The AI service is internal: only the API may call it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: ai-ingress, namespace: connectme}
+spec:
+  podSelector: {matchLabels: {app: connectme-ai}}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {matchLabels: {app: connectme-api}}
+      ports: [{port: 8000}]
+---
+# Egress: API -> AI, datastores, Stripe. Narrow these ports to your managed-service CIDRs.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: api-egress, namespace: connectme}
+spec:
+  podSelector: {matchLabels: {app: connectme-api}}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector: {matchLabels: {app: connectme-ai}}
+      ports: [{port: 8000}]
+    - ports: [{port: 5432}, {port: 6379}, {port: 27017}, {port: 443}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: realtime-egress, namespace: connectme}
+spec:
+  podSelector: {matchLabels: {app: connectme-realtime}}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector: {matchLabels: {app: connectme-api}}
+      ports: [{port: 8080}]
+    - ports: [{port: 6379}]

@@ -1,0 +1,15 @@
+.env
+*.log
+node_modules/
+__pycache__/
+.venv/
+build/
+.dart_tool/
+
+# secrets and local artefacts
+*.pem
+*.key
+*.exe
+data/
+coverage/
+.claude/

@@ -1,0 +1,10 @@
+# Minimal Prometheus config. /metrics is served on a private port (METRICS_ADDR),
+# never through the public API. In Kubernetes use pod discovery + a NetworkPolicy.
+global:
+  scrape_interval: 15s
+rule_files:
+  - alerts.yml
+scrape_configs:
+  - job_name: connectme-api
+    static_configs:
+      - targets: ["host.docker.internal:9464"]

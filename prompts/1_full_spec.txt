@@ -1,0 +1,1218 @@
+Can you make a text file of everything.? So I can handover to Claude and a detailed prompt you explain to me so he will do accordingly
+The user wants a text file containing everything — the PRD, the prompts, the file structure, etc. — so they can hand it over to Claude. I should create a single, self-contained, copy-pasteable document. I can't actually create a file for them to download, but I can output it as a formatted text block they can save as a .txt or .md file.
+
+Let me produce a clean, comprehensive document that includes:
+
+Instructions on how to use this file (the "detailed prompt you explain to me so he will do accordingly" — i.e., instructions to the user on how to work with Claude)
+
+The complete PRD
+
+All prompts
+
+File structure
+
+Build order
+
+I should make it a single continuous document they can save. I'll format it as a plain-text/markdown file. Since they want to hand it to Claude, it should be structured so Claude can read the whole thing and understand the project.
+
+Let me also give them a clear explanation of HOW to use it — a workflow guide. That's the "detailed prompt you explain to me" part — they want me to explain to them how Claude should work.
+
+I should be practical. Let me write this as one big document with clear sections. I'll note at the start that they should save it as a file (e.g., ConnectMe_Project.md or .txt) and paste it into Claude.
+
+Given the length, I need to be careful about formatting. The previous response had "///" as a separator — that looked like a formatting artifact. I should use clean markdown headers instead.
+
+Let me structure it:
+
+PART 0: How to use this file (workflow instructions for the user)
+
+PART 1: Master Prompt (paste first to Claude)
+
+PART 2: PRD
+
+PART 3: Tech stack & architecture
+
+PART 4: File structure
+
+PART 5: Build order prompts (Step 1-10)
+
+PART 6: Continue prompt, token efficiency prompt
+
+PART 7: Security checklist
+
+PART 8: Monetization
+
+PART 9: FAQ / how to troubleshoot
+
+Actually, since they want to hand this to Claude as a file, I should organize it so Claude reads it top to bottom. The master prompt should be near the top but the PRD should be read first by Claude.
+
+Let me make it clean and well-organized. I'll aim for completeness but keep it readable.
+
+I'll use plain markdown since that's most portable and Claude reads it well. I'll tell them to save it as ConnectMe_Project_Spec.md.
+
+Let me write it out.
+
+I should keep the response focused since it's going to be long. Let me write the full file content.
+
+One important note: I should include a note about how to actually use it — the workflow. That's what they asked: "a detailed prompt you explain to me so he will do accordingly."
+
+Let me draft this carefully.
+
+📄 ConnectMe Project Specification File
+Below is the complete text file you can save and hand to Claude. Save it as:
+
+text
+ConnectMe_Project_Spec.md
+Copy everything from "BEGIN FILE" to "END FILE" into a single text file. Then paste it to Claude in one message, or break it into pieces as described in Part 0.
+
+text
+═══════════════════════════════════════════════════════════════════
+BEGIN FILE: ConnectMe_Project_Spec.md
+═══════════════════════════════════════════════════════════════════
+PART 0 — HOW TO USE THIS FILE (Read This First, Human)
+This section is for you, not Claude. Do not paste it to Claude.
+
+Workflow
+Save this entire document as ConnectMe_Project_Spec.md.
+
+Open Claude (Claude Pro recommended for long context + code).
+
+Paste PART 1 (Master Prompt) first as your very first message.
+
+Claude will reply confirming it understands and ask to begin.
+
+Paste PART 5, STEP 1 as your next message.
+
+Claude builds Step 1 files. Review them.
+
+Say continue to move to Step 2. Use PART 6 (Continue Prompt) if needed.
+
+Repeat until Step 10 is done.
+
+Rules to Tell Claude (Already in Master Prompt)
+Read the whole spec before writing code.
+
+Never skip security.
+
+Keep files under 300 lines.
+
+Output only diffs when modifying existing files.
+
+Confirm before moving to next step.
+
+If Claude Gets Confused
+Paste PART 6, PROMPT B (Re-Anchoring Prompt) — it resets Claude back to the spec.
+
+If Claude Gets Verbose / Wastes Tokens
+Paste PART 6, PROMPT C (Token Efficiency Prompt).
+
+If You Want to Skip Ahead
+You can jump to any Step prompt in PART 5. But Steps 1–3 must be done first because they define shared types everything else depends on.
+
+PART 1 — MASTER PROMPT (Paste This First to Claude)
+text
+You are a senior full-stack engineer and security architect building a 
+production-grade dating app called "ConnectMe."
+
+Read this entire specification document before writing any code. 
+Do not skip sections. Do not improvise the tech stack. Do not skip 
+security features.
+
+## What We Are Building
+
+ConnectMe is a hybrid dating app combining:
+- Momo (陌陌) social super-app features (live streaming, short video, 
+  games, groups, virtual gifts)
+- Tinder swipe matching + Double Dates + Group Hangouts
+- HeyMandi anonymous tag-based matching (no photos until mutual consent)
+- UNIQUE FEATURE: Hotel/Same-Place anonymous discovery with 
+  auto-delete after checkout
+
+## Core Innovation: Dual-Mode Identity
+
+Every user has two modes they can toggle between:
+
+1. OPEN MODE (default)
+   - Full profile: photos, name, bio, age
+   - Standard dating experience
+   
+2. INCOGNITO MODE
+   - No photos, no name shown
+   - Only tags, a one-line intro, and relative distance
+   - Identity only revealed after BOTH users tap "Reveal"
+   - Photos unlock only after mutual consent
+
+3. HOTEL MODE (special case)
+   - Triggered when user checks into a geofenced location
+   - Incognito is FORCED ON by default
+   - All data (chats, photos, profile) auto-deleted 24 hours 
+     after checkout
+   - Virtual drink sending, location message board, anonymous 
+     hotel feed
+
+## Tech Stack (Non-Negotiable)
+
+- Mobile: Flutter (Dart) — iOS + Android from one codebase
+- Backend API: Go (Golang) with chi router
+- Real-time: Node.js + Socket.io
+- AI Service: Python FastAPI
+- Databases: PostgreSQL (primary), Redis (cache/pub-sub), 
+  MongoDB (chat messages), Elasticsearch (geo search)
+- Auth: JWT + bcrypt + refresh token rotation
+- Payments: Stripe
+- Deployment: Docker + Kubernetes
+
+## File Structure (Create Exactly This)
+
+dating-app/
+├── prompts/                    # All prompts stored here
+├── backend/
+│   ├── cmd/server/main.go      # Entry point (<50 lines)
+│   ├── internal/
+│   │   ├── auth/               # JWT, bcrypt, RBAC, verification
+│   │   ├── users/              # Profile CRUD, dual-mode logic
+│   │   ├── matching/           # Swipe + AI scoring
+│   │   ├── geo/                # Hotel/place detection, checkins
+│   │   ├── chat/               # WebSocket handlers, E2E encryption
+│   │   ├── groups/             # Double/group dates
+│   │   ├── payments/           # Subscriptions, coins, gifts
+│   │   ├── moderation/         # Content safety
+│   │   └── live/               # Live streaming
+│   ├── pkg/
+│   │   ├── config/             # Env loading
+│   │   ├── database/           # PostgreSQL, Redis, Mongo connectors
+│   │   ├── middleware/         # Auth, rate limit, CORS, security
+│   │   └── utils/              # Validation, helpers
+│   └── migrations/             # SQL schema files
+├── mobile/                     # Flutter app
+│   ├── lib/
+│   │   ├── main.dart           # Entry (<30 lines)
+│   │   ├── core/
+│   │   │   ├── theme/          # Colors, typography
+│   │   │   ├── router/         # Navigation (GoRouter)
+│   │   │   └── network/        # API client (Dio)
+│   │   ├── features/
+│   │   │   ├── auth/
+│   │   │   ├── discovery/
+│   │   │   ├── chat/
+│   │   │   ├── hotel_mode/
+│   │   │   ├── group_dates/
+│   │   │   ├── profile/
+│   │   │   ├── payments/
+│   │   │   └── live/
+│   │   └── shared/widgets/     # Reusable components
+│   └── pubspec.yaml
+├── ai-service/                 # Python FastAPI
+│   ├── main.py
+│   ├── matching/               # Compatibility scoring
+│   ├── moderation/             # Content filtering
+│   └── wingman/                # Conversation helper
+├── admin/                      # Moderation dashboard
+├── docker-compose.yml
+├── .env.example
+└── README.md
+
+## Token Efficiency Rules (Apply to Every Reply)
+
+1. Keep every file under 300 lines. Split larger files into modules.
+2. NEVER rewrite a full file if only a section changes. Output only 
+   the diff:
+   // ...existing code...
+   [changed function]
+   // ...rest unchanged...
+3. Use shared types in pkg/ — never redefine types across features.
+4. Reference existing files instead of repeating them:
+   "Uses User struct from internal/users/model.go"
+5. Reuse Flutter widgets from shared/widgets/. Never duplicate UI.
+6. Skip long explanations unless I ask. 
+7. Output format per file:
+   ### File: path/to/file.go
+   ```language
+   [code]
+Key decision: [one-line note]
+Next file: [what comes next]
+
+Security Rules (Apply to Every File)
+Every API endpoint must have: authentication + authorization +
+input validation + rate limiting + error handling
+
+bcrypt (cost 12) for passwords
+
+JWT with 15min expiry + refresh token rotation (7 days in Redis)
+
+E2E encryption for all chats (Signal Protocol)
+
+Location: only relative distance shown, NEVER exact coordinates
+
+Auto-delete: all Hotel Mode data deleted 24h after checkout
+
+CSAM hash matching before ANY media publish
+
+18+ age gate (no youth mode)
+
+OWASP API Security Top 10 compliance
+
+GDPR/CCPA erasure endpoint (delete all user data in 30 days)
+
+Build Order (10 Steps)
+Step 1: Foundation (config, database, middleware, migrations)
+Step 2: Auth & Security
+Step 3: User Profiles & Dual Mode
+Step 4: Discovery & Matching (including Hotel Mode)
+Step 5: Chat & Real-Time
+Step 6: Group Dates (Double + Group)
+Step 7: Monetization (Subscriptions, Coins, Gifts)
+Step 8: Mobile App Polish (Flutter screens)
+Step 9: AI Service (matching, moderation, wingman)
+Step 10: Live Streaming + Final Security Audit
+
+I will send you one Step prompt at a time. After each Step, wait for
+me to say "continue" before starting the next Step.
+
+Confirm you understand and are ready for Step 1.
+
+text
+
+---
+
+# PART 2 — PRODUCT REQUIREMENTS DOCUMENT (PRD)
+1. Executive Summary
+ConnectMe is a secure, dual-mode dating app combining Momo's social
+super-app features, Tinder's swipe and group dating, HeyMandi's
+anonymous matching, and a unique Hotel/Same-Place discovery mode
+with automatic data deletion after checkout.
+
+Core differentiator: ONE app, TWO identities — Open Mode (full
+profile) and Incognito Mode (anonymous). No competitor combines
+both at scale with privacy-first design and hotel-bound auto-delete.
+
+2. Market Data
+Global online dating market (2025): $11.2B, 8.4% CAGR
+
+Coffee Meets Bagel revenue (2025): $49.64M
+
+90% of Tinder Double Date users are under 30
+
+Double Date pairs exchange 35% more messages than 1-on-1
+
+Group Hangouts invite acceptance (Australia test): 40%
+
+Yidui live-dating paying conversion: 11.6%
+
+Target: 5M registered users by Month 18, 1.2M monthly paying users,
+$10M+ ARR.
+
+3. Core Concepts
+3.1 Dual-Mode Identity
+Mode	Visibility	Default
+Open	Full profile: photos, name, bio, age	Yes
+Incognito	Tags, 1-line intro, relative distance only	Toggle
+Hotel	Same as Incognito + hotel name, forced ON	Auto
+Rules:
+
+Mode can be set per session or per match.
+
+Incognito photos unlock only after MUTUAL consent.
+
+Mode cannot change mid-chat without both parties' consent.
+
+Hotel Mode forces Incognito by default.
+
+3.2 Hotel / Same-Place Discovery
+User checks into a geofenced location (hotel, resort, conference,
+festival, airport lounge).
+
+App shows a private feed of other checked-in users.
+
+Identities hidden until mutual reveal.
+
+Icebreakers: send virtual drink, "Anyone want dinner?" board.
+
+ALL data tied to that checkin deletes 24h after checkout.
+
+3.3 Group Dates
+Double Dates: 2 friends match with 2 friends.
+
+Group Dates: 2-6 people, activity-based (dinner, hiking, concert).
+
+AI Wingman suggests icebreakers, venues, and time slots.
+
+4. Complete Feature List
+PHASE 1 — Core Dating + Monetization (Months 1-6)
+F1.1 Nearby People (relative distance only)
+
+F1.2 Swipe matching (like, pass, super like)
+
+F1.3 AI compatibility scoring
+
+F1.4 Dual-mode toggle (Open / Incognito)
+
+F1.5 Hotel / Same-Place geofenced discovery
+
+F1.6 Anonymous random matching (Momo Mashang Chat equivalent)
+
+F1.7 Real-time chat (text, voice notes, images)
+
+F1.8 Voice and video calls (WebRTC)
+
+F1.9 Burn-after-reading messages
+
+F1.10 Location Message Board
+
+F1.11 E2E encryption for all chats
+
+F1.12 Double Dates (2v2)
+
+F1.13 Group Dates (2-6 people, activity-based)
+
+F1.14 Group chat with AI icebreaker suggestions
+
+F1.15 Virtual currency (Coins)
+
+F1.16 Virtual gifts (drinks, roses, room-service gifts)
+
+F1.17 Subscription tiers: Silver / Gold / Platinum
+
+F1.18 Profile boosts, Super Likes, invisibility mode
+
+F1.19 Photo ID + liveness verification
+
+F1.20 CSAM hash matching on all uploads
+
+F1.21 Content moderation (text + image)
+
+F1.22 Rate limiting (50 swipes/15min, 100/hour)
+
+F1.23 Block, report, unmatch
+
+F1.24 Auto-delete after hotel checkout (24h)
+
+F1.25 GDPR/CCPA erasure endpoint
+
+PHASE 2 — Engagement & Revenue (Months 7-12)
+F2.1 Live streaming (hosts, hotel mixers, group rooms)
+
+F2.2 Virtual gifts in live streams
+
+F2.3 Short video feed (TikTok-style)
+
+F2.4 Audio rooms (voice-only anonymous lounge)
+
+F2.5 Social games (truth-or-dare, couple quizzes)
+
+F2.6 Nearby Groups (interest + hotel guest groups)
+
+F2.7 Little Universe (anonymous private feed)
+
+F2.8 Masked Truth (anonymous truth-or-dare)
+
+F2.9 Missed Connections at events
+
+F2.10 Nearby Feed / Moments (location-based posts)
+
+F2.11 Video profile reels
+
+F2.12 Voice intro clips
+
+PHASE 3 — Super-App Ecosystem (Months 13-24)
+F3.1 Momo Bar-style forums
+
+F3.2 Mood-Based Hotel Discovery
+
+F3.3 Chapter-Based Profiles (narrative)
+
+F3.4 AI Wingman (full agent)
+
+F3.5 Sponsored live concerts and hotel events
+
+F3.6 Event-Based Group Hangouts
+
+F3.7 Partner booking (hotels, restaurants) with commission
+
+5. Monetization Model
+Stream	Detail	Price
+Silver Subscription	Unlimited likes, 5 Super Likes/day	$9.99/mo
+Gold Subscription	+ See who liked you, 1 boost/week	$19.99/mo
+Platinum Subscription	+ Priority matching, unlimited boosts	$39.99/mo
+Virtual Coins	For gifts, boosts, Super Likes	$0.99-$99.99
+Group Date Booking	AI-coordinated logistics	$5-$15/person
+Hotel Partner Comm.	Bookings through app	10-20%
+Live Stream Gifts	30% platform cut	Variable
+Sponsored Profiles	Brand placements	B2B
+Target: $10M ARR at 1.2M paying users.
+
+6. Success Metrics
+Metric	Phase 1	Phase 2
+Registered users	500K	5M
+MAU	200K	2M
+Paying users	20K	1.2M
+Conversion rate	10%	11.6%
+D30 retention	25%	35%
+Hotel Mode usage	15%	25%
+Group Date usage	10%	20%
+ARR	$500K	$10M
+text
+
+---
+
+# PART 3 — DATABASE SCHEMA
+
+```sql
+-- migrations/001_initial_schema.sql
+
+CREATE TABLE users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email VARCHAR(255) UNIQUE NOT NULL,
+  phone VARCHAR(20),
+  password_hash VARCHAR(255) NOT NULL,
+  role VARCHAR(20) DEFAULT 'user', -- user, moderator, admin
+  is_verified BOOLEAN DEFAULT FALSE,
+  is_banned BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE profiles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  display_name VARCHAR(50),
+  bio TEXT,
+  age INT,
+  gender VARCHAR(20),
+  looking_for VARCHAR(20),
+  mode VARCHAR(20) DEFAULT 'open', -- open, incognito, hotel
+  photos JSONB DEFAULT '[]',
+  tags TEXT[] DEFAULT '{}',
+  location GEOGRAPHY(POINT),
+  mood VARCHAR(50),
+  last_active TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE matches (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user1_id UUID REFERENCES users(id),
+  user2_id UUID REFERENCES users(id),
+  status VARCHAR(20) DEFAULT 'pending', -- pending, matched, rejected
+  mode VARCHAR(20) DEFAULT 'open',
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  match_id UUID REFERENCES matches(id) ON DELETE CASCADE,
+  sender_id UUID REFERENCES users(id),
+  content TEXT,
+  type VARCHAR(20) DEFAULT 'text', -- text, image, voice, gift
+  is_burn BOOLEAN DEFAULT FALSE,
+  burn_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE hotels (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(255) NOT NULL,
+  address TEXT,
+  geofence GEOGRAPHY(POLYGON),
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE hotel_checkins (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id),
+  hotel_id UUID REFERENCES hotels(id),
+  checked_in_at TIMESTAMP DEFAULT NOW(),
+  checked_out_at TIMESTAMP,
+  auto_delete_at TIMESTAMP
+);
+
+CREATE TABLE groups (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(100),
+  type VARCHAR(20), -- double, group
+  activity VARCHAR(50),
+  created_by UUID REFERENCES users(id),
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE group_members (
+  group_id UUID REFERENCES groups(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id),
+  joined_at TIMESTAMP DEFAULT NOW(),
+  PRIMARY KEY (group_id, user_id)
+);
+
+CREATE TABLE payments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id),
+  type VARCHAR(20), -- subscription, coins, gift
+  amount_cents INT,
+  currency VARCHAR(3),
+  stripe_id VARCHAR(255),
+  status VARCHAR(20),
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE subscriptions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id),
+  tier VARCHAR(20), -- silver, gold, platinum
+  started_at TIMESTAMP DEFAULT NOW(),
+  expires_at TIMESTAMP,
+  status VARCHAR(20)
+);
+
+-- Indexes
+CREATE INDEX idx_profiles_location ON profiles USING GIST (location);
+CREATE INDEX idx_profiles_user_id ON profiles (user_id);
+CREATE INDEX idx_matches_user1 ON matches (user1_id);
+CREATE INDEX idx_matches_user2 ON matches (user2_id);
+CREATE INDEX idx_messages_match ON messages (match_id);
+CREATE INDEX idx_messages_created ON messages (created_at);
+CREATE INDEX idx_checkins_hotel ON hotel_checkins (hotel_id);
+CREATE INDEX idx_checkins_delete ON hotel_checkins (auto_delete_at);
+CREATE INDEX idx_payments_user ON payments (user_id);
+CREATE INDEX idx_subs_user ON subscriptions (user_id);
+PART 4 — ARCHITECTURE SUMMARY
+text
+Frontend:       Flutter (Dart) — iOS + Android from one codebase
+                Impeller renderer, 58-60 FPS on swipe UIs
+
+Backend API:    Go (Golang) + chi router
+                180ms startup, 68MB memory under load
+
+Real-time:      Node.js + Socket.io (WebSocket)
+                Redis Pub/Sub for multi-server scaling
+
+AI Service:     Python FastAPI
+                Matching, moderation, wingman
+
+Databases:      PostgreSQL  — users, profiles, matches, payments
+                Redis       — sessions, rate limiting, pub/sub
+                MongoDB     — chat messages (high write volume)
+                Elasticsearch — geo-sharded nearby search
+
+Auth:           JWT (15min) + refresh tokens (7 days, Redis)
+                bcrypt password hashing (cost 12)
+                RBAC: user, moderator, admin
+
+Payments:       Stripe (subscriptions, coins, gifts)
+
+E2E Encryption: Signal Protocol for all chats
+
+Deployment:     Docker + Kubernetes
+                AWS or GCP
+                CDN for media
+                Kafka/RabbitMQ for async events
+PART 5 — STEP-BY-STEP BUILD PROMPTS
+STEP 1 — Foundation
+text
+Build Step 1: Foundation.
+
+Create these files in order:
+
+1. backend/cmd/server/main.go (<50 lines)
+   - Load config
+   - Connect to PostgreSQL, Redis, MongoDB
+   - Register routes
+   - Start HTTP server on port from env
+   - Graceful shutdown handler
+
+2. backend/pkg/config/config.go
+   - Load from .env using godotenv
+   - Config struct: DB, Redis, Mongo, JWT, Stripe, Port
+   - Validate required vars on startup, fail fast if missing
+
+3. backend/pkg/database/postgres.go
+   - pgx connection pool (max 25 open, 5 idle)
+   - Health check function
+   - Auto-run migrations on startup
+
+4. backend/pkg/database/redis.go
+   - Client with context timeout
+   - Helpers: Get, Set, Delete, Incr
+
+5. backend/pkg/database/mongo.go
+   - Client connection
+   - Collection helper
+
+6. backend/pkg/middleware/auth.go
+   - JWT validation middleware
+   - Extract user_id from token into context
+   - Return 401 if invalid or expired
+
+7. backend/pkg/middleware/ratelimit.go
+   - Redis-based sliding window
+   - Limits: 50 swipes/15min, 100/hour per user
+   - Return 429 with Retry-After header
+
+8. backend/pkg/middleware/cors.go
+   - Allow only app domains
+   - Credentials: true
+
+9. backend/pkg/middleware/security.go
+   - OWASP headers: X-Content-Type-Options, X-Frame-Options,
+     Strict-Transport-Security, Content-Security-Policy
+   - Input sanitization helper
+
+10. backend/migrations/001_initial_schema.sql
+    Use the exact schema in PART 3 of the specification.
+
+After creating all files, output:
+- List of new environment variables needed
+- List of Go dependencies for go.mod
+- Security concerns flagged for this step
+- Confirmation ready for Step 2
+STEP 2 — Auth & Security
+text
+Build Step 2: Auth & Security.
+
+Create:
+
+1. backend/internal/auth/model.go
+   - Structs: User, Session, TokenPair
+   - Request structs: RegisterRequest, LoginRequest, RefreshRequest
+
+2. backend/internal/auth/service.go
+   - Register: validate email/password, bcrypt hash (cost 12),
+     insert user, send verification email
+   - Login: bcrypt compare, generate JWT (15min) + refresh token
+     (7 days in Redis)
+   - Refresh: validate, rotate, issue new pair
+   - Logout: revoke refresh token in Redis
+   - Password reset flow
+
+3. backend/internal/auth/handler.go
+   - POST /auth/register
+   - POST /auth/login
+   - POST /auth/refresh
+   - POST /auth/logout
+   - POST /auth/forgot-password
+   - POST /auth/reset-password
+   - All with rate limiting + input validation
+
+4. backend/internal/auth/verification.go
+   - Photo ID upload endpoint
+   - Liveness check integration (AWS Rekognition or similar)
+   - Store verification status only, never raw ID images
+   - CSAM hash check before storing any photo
+
+5. backend/internal/auth/rbac.go
+   - Roles: user, moderator, admin
+   - Middleware: RequireRole(role)
+   - Permission matrix
+
+6. backend/pkg/utils/validation.go
+   - Email regex, password strength (min 12 chars, 1 upper,
+     1 lower, 1 number, 1 symbol)
+   - Phone validation
+   - HTML/script sanitization
+
+After creating all files:
+- Show example curl commands for each endpoint
+- Flag security concerns
+- Confirm ready for Step 3
+STEP 3 — User Profiles & Dual Mode
+text
+Build Step 3: User Profiles & Dual Mode.
+
+Create:
+
+1. backend/internal/users/model.go
+   - Structs: Profile, Preferences, Photo
+   - UpdateProfileRequest with mode toggle
+   - Mode enum: open, incognito, hotel
+
+2. backend/internal/users/service.go
+   - GetProfile(userID)
+   - UpdateProfile(userID, req)
+   - SetMode(userID, mode) with rules:
+     * Cannot switch to Open mid-chat without both parties' consent
+     * Hotel Mode forces Incognito default
+   - UploadPhoto(userID, file): CSAM check, strip EXIF, resize
+   - DeletePhoto(userID, photoID)
+   - GetPublicProfile(userID, viewerID): respects mode
+     * Open: full profile
+     * Incognito: tags + 1-line intro + relative distance only
+     * Hotel: same as Incognito + hotel name
+
+3. backend/internal/users/handler.go
+   - GET /users/me
+   - PATCH /users/me
+   - POST /users/me/mode
+   - POST /users/me/photos
+   - DELETE /users/me/photos/:id
+   - GET /users/:id (respects mode)
+   - GET /users/nearby
+
+4. backend/internal/users/search.go
+   - Elasticsearch query for nearby users
+   - Filters: age range, gender, looking_for, tags, mode
+   - Distance: only relative ("1.2 km away"), NEVER exact coords
+
+5. mobile/lib/features/profile/
+   - screens/profile_screen.dart
+   - screens/edit_profile_screen.dart
+   - screens/mode_toggle_screen.dart
+   - providers/profile_provider.dart
+   - widgets/mode_switch.dart
+
+After creating all files:
+- Explain mode-switching business rules
+- Flag privacy concerns
+- Confirm ready for Step 4
+STEP 4 — Discovery & Matching
+text
+Build Step 4: Discovery & Matching (including Hotel Mode).
+
+Create:
+
+1. backend/internal/matching/model.go
+   - Structs: Swipe, Match, CompatibilityScore
+   - SwipeRequest { target_id, action }
+
+2. backend/internal/matching/service.go
+   - Swipe(userID, targetID, action):
+     * Rate limit check
+     * Record swipe
+     * Check mutual like → create match
+     * Trigger AI scoring async
+   - GetMatches(userID) paginated
+   - Unmatch(userID, matchID)
+   - SuperLike(userID, targetID) — deducts coins
+   - Boost(userID) — deducts coins, 30min visibility
+
+3. backend/internal/matching/handler.go
+   - POST /matching/swipe
+   - GET /matching/matches
+   - DELETE /matching/matches/:id
+   - POST /matching/superlike
+   - POST /matching/boost
+
+4. backend/internal/geo/model.go
+   - Structs: Hotel, CheckIn, GeoFence
+
+5. backend/internal/geo/service.go
+   - DetectHotel(location): match against geofence polygons
+   - CheckIn(userID, hotelID): set auto_delete_at = checkout + 24h
+   - CheckOut(userID): trigger deletion job
+   - GetHotelUsers(hotelID, viewerID): anonymous feed
+   - SendVirtualDrink(fromID, toID, hotelID)
+   - PostToBoard(hotelID, message)
+   - ScheduleDeletion(checkinID): background job
+
+6. backend/internal/geo/handler.go
+   - POST /geo/checkin
+   - POST /geo/checkout
+   - GET /geo/hotel/:id/users
+   - POST /geo/hotel/:id/drink
+   - GET /geo/hotel/:id/board
+   - POST /geo/hotel/:id/board
+
+7. ai-service/matching/scorer.py
+   - CompatibilityScore(user1, user2) → 0-100
+   - Factors: shared tags, age proximity, activity patterns,
+     conversation history
+   - FastAPI endpoint: POST /score
+
+8. mobile/lib/features/discovery/
+   - screens/swipe_screen.dart
+   - screens/nearby_screen.dart
+   - widgets/swipe_card.dart
+   - providers/discovery_provider.dart
+
+9. mobile/lib/features/hotel_mode/
+   - screens/hotel_checkin_screen.dart
+   - screens/hotel_feed_screen.dart
+   - screens/board_screen.dart
+   - providers/hotel_provider.dart
+
+After creating all files:
+- Explain hotel auto-delete mechanism
+- Flag privacy concerns
+- Confirm ready for Step 5
+STEP 5 — Chat & Real-Time
+text
+Build Step 5: Chat & Real-Time.
+
+Create:
+
+1. backend/internal/chat/model.go
+   - Structs: Message, Conversation, TypingEvent
+   - MessageType: text, image, voice, gift
+
+2. backend/internal/chat/service.go
+   - SendMessage(matchID, senderID, content, type)
+   - Encrypt with Signal Protocol (E2E)
+   - Store in MongoDB
+   - Burn-after-reading: set burn_at
+   - GetMessages(matchID, pagination)
+   - MarkRead(matchID, userID)
+   - DeleteBurnedMessages(): background job every minute
+
+3. backend/internal/chat/websocket.go (Node.js, port 3001)
+   - Socket.io server
+   - Events: authenticate, join_match, message, typing,
+     read_receipt, disconnect
+   - Redis Pub/Sub for multi-server scaling
+   - Rate limit: 30 messages/min per user
+
+4. backend/internal/chat/handler.go
+   - GET /chat/matches/:id/messages
+   - POST /chat/matches/:id/messages
+   - POST /chat/matches/:id/read
+   - DELETE /chat/matches/:id
+
+5. mobile/lib/features/chat/
+   - screens/chat_list_screen.dart
+   - screens/chat_screen.dart
+   - widgets/message_bubble.dart
+   - widgets/typing_indicator.dart
+   - providers/chat_provider.dart
+   - services/socket_service.dart
+
+After creating all files:
+- Explain E2E encryption flow
+- Flag security concerns
+- Confirm ready for Step 6
+STEP 6 — Group Dates
+text
+Build Step 6: Group Dates.
+
+Create:
+
+1. backend/internal/groups/model.go
+   - Structs: Group, GroupMember, GroupInvite, Activity
+   - GroupType: double, group
+   - Activity: dinner, hiking, concert, bar_crawl, custom
+
+2. backend/internal/groups/service.go
+   - CreateGroup(userID, type, activity):
+     * Double: exactly 2 members
+     * Group: 2-6 members
+   - InviteToGroup(groupID, inviterID, inviteeID)
+   - JoinGroup(groupID, userID)
+   - BrowseGroups(userID, filters):
+     * Match by activity + location + size
+   - MatchGroups(group1ID, group2ID): mutual consent
+   - CreateGroupChat(groupIDs): merged chat
+   - SuggestVenue(groupID, activity, location): AI-powered
+   - ScheduleDate(groupID, venue, time)
+
+3. backend/internal/groups/handler.go
+   - POST /groups
+   - POST /groups/:id/invite
+   - POST /groups/:id/join
+   - GET /groups/browse
+   - POST /groups/:id/match
+   - POST /groups/:id/venue
+   - POST /groups/:id/schedule
+
+4. ai-service/wingman/conversation_helper.py
+   - SuggestIcebreakers(groupA, groupB) → list of 5 topics
+   - SuggestVenues(activity, location, groupSize) → list
+   - MonitorConversation(chatID) → flag if going well/poorly
+   - FastAPI endpoint: POST /wingman/suggest
+
+5. mobile/lib/features/group_dates/
+   - screens/create_group_screen.dart
+   - screens/browse_groups_screen.dart
+   - screens/group_chat_screen.dart
+   - screens/schedule_date_screen.dart
+   - widgets/group_card.dart
+   - widgets/activity_picker.dart
+   - providers/group_provider.dart
+
+After creating all files:
+- Explain group matching algorithm
+- Confirm ready for Step 7
+STEP 7 — Monetization
+text
+Build Step 7: Monetization.
+
+Create:
+
+1. backend/internal/payments/model.go
+   - Structs: Payment, Subscription, CoinPack, Gift
+   - Tier: silver, gold, platinum
+
+2. backend/internal/payments/tiers.go
+   - Silver: unlimited likes, 5 Super Likes/day, no ads ($9.99)
+   - Gold: + see who liked you, 1 boost/week, incognito ($19.99)
+   - Platinum: + priority matching, unlimited boosts, VIP badge ($39.99)
+
+3. backend/internal/payments/service.go
+   - CreateCheckoutSession(userID, tier): Stripe
+   - HandleWebhook(event): subscription created/renewed/cancelled
+   - BuyCoins(userID, packID): Stripe
+   - SendGift(fromID, toID, giftID): deduct coins, deliver gift
+   - GetBalance(userID)
+   - CancelSubscription(userID)
+
+4. backend/internal/payments/handler.go
+   - POST /payments/subscribe
+   - POST /payments/coins
+   - POST /payments/gift
+   - GET /payments/balance
+   - POST /payments/cancel
+   - POST /payments/webhook (Stripe)
+
+5. mobile/lib/features/payments/
+   - screens/subscription_screen.dart
+   - screens/coin_shop_screen.dart
+   - screens/gift_shop_screen.dart
+   - providers/payment_provider.dart
+   - widgets/tier_card.dart
+
+After creating all files:
+- Explain Stripe webhook security
+- Confirm ready for Step 8
+STEP 8 — Mobile App Polish
+text
+Build Step 8: Flutter Mobile App.
+
+Create:
+
+1. mobile/lib/main.dart (<30 lines)
+2. mobile/lib/core/theme/app_theme.dart: dark + light, brand colors
+3. mobile/lib/core/router/app_router.dart: GoRouter with auth guard
+4. mobile/lib/core/network/api_client.dart: Dio with interceptors
+   (JWT, refresh, error handling)
+5. mobile/lib/shared/widgets/: Button, Card, Avatar, Loader, EmptyState
+6. mobile/lib/features/auth/: login, register, verify screens
+7. mobile/lib/features/discovery/: swipe, nearby, filters
+8. mobile/lib/features/hotel_mode/: checkin, feed, board
+9. mobile/lib/features/group_dates/: create, browse, chat
+10. mobile/lib/features/chat/: list, chat, media
+11. mobile/lib/features/profile/: view, edit, mode toggle
+12. mobile/lib/features/payments/: subscription, coins, gifts
+
+For each screen:
+- Loading state
+- Empty state
+- Error state
+- Pull-to-refresh where applicable
+
+After creating all files:
+- Confirm iOS and Android builds work
+- Confirm ready for Step 9
+STEP 9 — AI Service
+text
+Build Step 9: AI Service.
+
+Create:
+
+1. ai-service/main.py
+   - FastAPI app with CORS
+   - Health check endpoint
+   - Routes: /score, /moderate, /wingman/suggest
+
+2. ai-service/matching/scorer.py
+   - CompatibilityScore(user1, user2) → 0-100
+   - Factors: shared tags (40%), age proximity (20%),
+     activity patterns (20%), conversation history (20%)
+   - Return top 3 reasons for match
+
+3. ai-service/moderation/content_filter.py
+   - Text: profanity, harassment, spam, scam detection
+   - Image: nudity, violence, CSAM hash matching
+   - Return: { safe: bool, reason: str, action: str }
+
+4. ai-service/wingman/conversation_helper.py
+   - SuggestIcebreakers(groupA, groupB) → 5 topics
+   - SuggestVenues(activity, location, groupSize) → 3 venues
+   - MonitorConversation(chatID) → sentiment score
+
+5. Update backend to call AI service:
+   - backend/internal/matching/service.go: call /score
+   - backend/internal/moderation/service.go: call /moderate
+   - backend/internal/groups/service.go: call /wingman/suggest
+
+After creating all files:
+- Confirm ready for Step 10
+STEP 10 — Live Streaming + Final Audit
+text
+Build Step 10: Live Streaming + Final Security Audit.
+
+Step 10A — Live Streaming
+
+1. backend/internal/live/handler.go
+   - POST /live/rooms (create room)
+   - GET /live/rooms (list live rooms)
+   - POST /live/rooms/:id/join
+   - POST /live/rooms/:id/gift
+
+2. backend/internal/live/service.go
+   - WebRTC signaling (LiveKit integration)
+   - Gift processing (deduct coins, 30% platform cut)
+   - Room lifecycle: create, close, cleanup
+
+3. mobile/lib/features/live/
+   - screens/live_list_screen.dart
+   - screens/live_room_screen.dart
+   - screens/broadcast_screen.dart
+   - widgets/gift_overlay.dart
+
+Step 10B — Final Security Audit
+
+Audit checklist for every module:
+[ ] bcrypt password hashing (cost 12)
+[ ] JWT with 15min expiry + refresh rotation
+[ ] Rate limiting on every endpoint
+[ ] Location privacy: relative distance only
+[ ] E2E encryption for all chats
+[ ] Auto-delete 24h after hotel checkout
+[ ] CSAM hash matching before media publish
+[ ] GDPR erasure endpoint works
+[ ] OWASP API Top 10 compliance verified
+[ ] Input validation on every endpoint
+[ ] RBAC enforced on all admin routes
+[ ] SQL injection prevention (parameterized queries)
+[ ] XSS prevention (input sanitization + output encoding)
+[ ] CORS configured for app domains only
+[ ] Secrets loaded from env, never hardcoded
+
+After creating all files:
+- Full project summary
+- Deployment checklist (Docker + K8s)
+- List of known limitations and next steps for Phase 2
+PART 6 — UTILITY PROMPTS
+PROMPT A — Continue Prompt (Use Between Steps)
+text
+Continue with Step [X].
+
+Before writing:
+1. Read the files from the previous step.
+2. Check interface compatibility.
+3. Update shared types in pkg/ first if needed.
+
+After writing:
+1. List new environment variables.
+2. List new Go/Flutter/Python dependencies.
+3. Flag any security concerns for this step.
+4. Confirm ready for next step.
+PROMPT B — Re-Anchoring Prompt (If Claude Gets Confused)
+text
+Stop. Re-read the ConnectMe_Project_Spec.md file from the beginning.
+
+Reminder:
+- We are building ConnectMe, a hybrid dating app with dual-mode 
+  identity and hotel auto-delete.
+- Tech stack: Flutter + Go + Node.js + Python FastAPI.
+- File structure is fixed. Do not invent new folders.
+- Security rules are non-negotiable.
+- Every file must be under 300 lines.
+- Output only diffs when modifying existing files.
+
+Current step: [X]
+Continue from where we left off.
+PROMPT C — Token Efficiency Prompt
+text
+Token efficiency check:
+- Files must be under 300 lines. Split if larger.
+- Output only diffs for modified files:
+  // ...existing code...
+  [changed section]
+  // ...rest unchanged...
+- Reference existing types, never redefine.
+- Reuse Flutter widgets from shared/widgets/.
+- Skip explanations unless I ask.
+- Format per file: ### File: path → code → 1-line note → Next file.
+PROMPT D — Security Audit Prompt
+text
+Run a security audit on the code written so far.
+
+For each module, verify:
+- Authentication on every non-public endpoint
+- Authorization (RBAC) enforced
+- Input validation on all request bodies
+- Rate limiting configured
+- SQL injection prevention (parameterized queries only)
+- XSS prevention (input sanitization + output encoding)
+- Secrets loaded from environment, not hardcoded
+- Location data: only relative distance exposed
+- E2E encryption for chats
+- Auto-delete jobs scheduled and tested
+
+Output a checklist with PASS/FAIL for each item, plus fixes for 
+any FAILs.
+PART 7 — ENVIRONMENT VARIABLES (.env.example)
+text
+# Server
+PORT=8080
+ENV=development
+
+# PostgreSQL
+POSTGRES_URL=postgres://user:pass@localhost:5432/connectme
+
+# Redis
+REDIS_URL=redis://localhost:6379
+
+# MongoDB
+MONGO_URL=mongodb://localhost:27017/connectme
+
+# JWT
+JWT_SECRET=change-me-64-chars-min
+JWT_ACCESS_EXPIRY=15m
+JWT_REFRESH_EXPIRY=168h
+
+# Stripe
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+
+# AWS (for photo ID verification)
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+AWS_REGION=us-east-1
+
+# LiveKit (for live streaming)
+LIVEKIT_API_KEY=...
+LIVEKIT_API_SECRET=...
+LIVEKIT_URL=wss://...
+
+# AI Service
+AI_SERVICE_URL=http://localhost:8000
+
+# Firebase (push notifications)
+FIREBASE_CREDENTIALS=...
+PART 8 — SUCCESS CHECKLIST
+Before you consider the app ready to launch:
+
+text
+[ ] All 10 Steps built and reviewed
+[ ] Security audit passed (Prompt D)
+[ ] iOS build runs on physical device
+[ ] Android build runs on physical device
+[ ] All API endpoints tested with Postman/curl
+[ ] Stripe webhook tested with Stripe CLI
+[ ] Hotel auto-delete job verified (check in, check out, wait 24h)
+[ ] E2E encryption verified (can't read messages in DB)
+[ ] Rate limiting verified (swipe 51 times in 15 min → 429)
+[ ] CSAM hash matching tested with sample image
+[ ] GDPR erasure endpoint tested
+[ ] Admin moderation dashboard functional
+[ ] Load test: 10K concurrent users
+[ ] Docker + K8s deployment working
+[ ] Monitoring (Prometheus + Grafana) live
+[ ] Error tracking (Sentry) live
+[ ] Privacy policy + terms of service drafted
+[ ] 18+ age gate enforced
+[ ] Legal review completed for target markets
+text
+═══════════════════════════════════════════════════════════════════
+END FILE: ConnectMe_Project_Spec.md
+═══════════════════════════════════════════════════════════════════
+🎬 What You Do Now
+Copy everything between "BEGIN FILE" and "END FILE" into a text file named ConnectMe_Project_Spec.md.
+
+Open Claude.
+
+Paste PART 1 (Master Prompt) as your first message → Claude confirms it understands.
+
+Paste STEP 1 from PART 5 → Claude builds the foundation files.
+
+Review the output. If good, paste PROMPT A with Step 2.
+
+Repeat until Step 10 is done.
+
+If Claude drifts, paste PROMPT B. If it wastes tokens, paste PROMPT C.
+
+That's the entire handoff. You have the spec, the PRD, the schema, the file structure, the security rules, the 10 build prompts, and the utility prompts — all in one file you can save and reuse.

@@ -1,0 +1,4 @@
+.env
+*.exe
+data/
+**/*_test.go

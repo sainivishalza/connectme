@@ -1,0 +1,58 @@
+groups:
+  - name: connectme
+    rules:
+      # The 24 h hotel-data deletion is a privacy promise: page if it stops running.
+      - alert: RetentionJobStalled
+        expr: time() - connectme_job_last_success_timestamp_seconds{job="geo_retention"} > 600
+        for: 5m
+        labels: {severity: page}
+        annotations:
+          summary: "Hotel retention job has not succeeded for 10+ minutes"
+          description: "Check-in data may be kept longer than promised. See docs/DEPLOYMENT.md."
+      - alert: ChatRetentionStalled
+        expr: time() - connectme_job_last_success_timestamp_seconds{job="chat_retention"} > 600
+        for: 5m
+        labels: {severity: page}
+        annotations: {summary: "Chat burn/sweep job has not succeeded for 10+ minutes"}
+      - alert: JobErrors
+        expr: increase(connectme_job_runs_total{result="error"}[15m]) > 3
+        labels: {severity: ticket}
+        annotations: {summary: "Background job {{ $labels.job }} is failing"}
+      - alert: HighServerErrorRate
+        expr: |
+          sum(rate(connectme_http_requests_total{status=~"5.."}[5m]))
+            / clamp_min(sum(rate(connectme_http_requests_total[5m])), 1) > 0.02
+        for: 5m
+        labels: {severity: page}
+        annotations: {summary: "More than 2% of requests are failing with 5xx"}
+      - alert: SlowRequests
+        expr: histogram_quantile(0.95, sum(rate(connectme_http_request_duration_seconds_bucket[5m])) by (le)) > 1
+        for: 10m
+        labels: {severity: ticket}
+        annotations: {summary: "p95 latency above 1s"}
+      - alert: AIServiceBreakerOpen
+        expr: connectme_ai_breaker_open == 1
+        for: 5m
+        labels: {severity: ticket}
+        annotations:
+          summary: "AI service unreachable: moderation is failing open and matches are unscored"
+      - alert: StripeWebhookFailures
+        expr: increase(connectme_stripe_webhooks_total{result=~"error|rejected"}[15m]) > 3
+        labels: {severity: page}
+        annotations:
+          summary: "Stripe webhooks are failing: purchases may not be credited"
+      - alert: DBPoolSaturated
+        expr: connectme_db_pool_acquired_conns / connectme_db_pool_max_conns > 0.9
+        for: 5m
+        labels: {severity: ticket}
+        annotations: {summary: "Database connection pool is nearly exhausted"}
+      - alert: LoginFailureSpike
+        expr: rate(connectme_events_total{event="login_failed"}[5m]) > 5
+        for: 10m
+        labels: {severity: ticket}
+        annotations: {summary: "Elevated failed logins: possible credential stuffing"}
+      - alert: RateLimitingSpike
+        expr: sum(rate(connectme_rate_limited_total[5m])) > 20
+        for: 10m
+        labels: {severity: ticket}
+        annotations: {summary: "Heavy rate limiting: abuse, or per-IP limits behind a proxy (see TRUSTED_PROXY_CIDRS)"}

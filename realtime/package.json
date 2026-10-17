@@ -1,0 +1,24 @@
+{
+  "name": "realtime",
+  "version": "1.0.0",
+  "description": "ConnectMe real-time chat relay (Socket.io)",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test test/*.test.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@socket.io/redis-adapter": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "redis": "^6.3.0",
+    "socket.io": "^4.8.4"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.4"
+  },
+  "private": true
+}

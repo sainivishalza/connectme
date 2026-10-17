@@ -1,0 +1,145 @@
+apiVersion: v1
+kind: Namespace
+metadata: {name: connectme}
+---
+# Photos and chat attachments are written to disk; two replicas need a
+# ReadWriteMany volume (or an object store, a launch item).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: connectme-media, namespace: connectme}
+spec:
+  accessModes: [ReadWriteMany]
+  resources: {requests: {storage: 20Gi}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: connectme-api, namespace: connectme, labels: {app: connectme-api}}
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: connectme-api}}
+  template:
+    metadata: {labels: {app: connectme-api}}
+    spec:
+      automountServiceAccountToken: false
+      securityContext: {runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
+      volumes:
+        - name: media
+          persistentVolumeClaim: {claimName: connectme-media}
+      containers:
+        - name: connectme-api
+          image: connectme-backend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - {containerPort: 8080, name: http}
+            - {containerPort: 9464, name: metrics}
+          envFrom: [{secretRef: {name: connectme-secrets}}]
+          env:
+            - {name: ENV, value: production}
+            - {name: PORT, value: "8080"}
+            - {name: METRICS_ADDR, value: "0.0.0.0:9464"}
+            - {name: MEDIA_DIR, value: /media}
+            - {name: AI_SERVICE_URL, value: "http://connectme-ai:8000"}
+          volumeMounts: [{name: media, mountPath: /media}]
+          readinessProbe: {httpGet: {path: /readyz, port: http}, periodSeconds: 5}
+          livenessProbe: {httpGet: {path: /healthz, port: http}, periodSeconds: 10, failureThreshold: 6}
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: connectme-api, namespace: connectme}
+spec:
+  selector: {app: connectme-api}
+  ports: [{port: 8080, targetPort: http, name: http}]
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: {name: connectme-api, namespace: connectme}
+spec:
+  minAvailable: 1
+  selector: {matchLabels: {app: connectme-api}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: connectme-realtime, namespace: connectme, labels: {app: connectme-realtime}}
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: connectme-realtime}}
+  template:
+    metadata: {labels: {app: connectme-realtime}}
+    spec:
+      automountServiceAccountToken: false
+      securityContext: {runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: connectme-realtime
+          image: connectme-realtime:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - {containerPort: 3001, name: http}
+          envFrom: [{secretRef: {name: connectme-secrets}}]
+          env:
+            - {name: API_BASE, value: "http://connectme-api:8080"}
+            - {name: REALTIME_PORT, value: "3001"}
+          readinessProbe: {httpGet: {path: /healthz, port: http}, periodSeconds: 5}
+          livenessProbe: {httpGet: {path: /healthz, port: http}, periodSeconds: 10, failureThreshold: 6}
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: connectme-realtime, namespace: connectme}
+spec:
+  selector: {app: connectme-realtime}
+  ports: [{port: 3001, targetPort: http, name: http}]
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: {name: connectme-realtime, namespace: connectme}
+spec:
+  minAvailable: 1
+  selector: {matchLabels: {app: connectme-realtime}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: connectme-ai, namespace: connectme, labels: {app: connectme-ai}}
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: connectme-ai}}
+  template:
+    metadata: {labels: {app: connectme-ai}}
+    spec:
+      automountServiceAccountToken: false
+      securityContext: {runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: connectme-ai
+          image: connectme-ai:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - {containerPort: 8000, name: http}
+          envFrom: [{secretRef: {name: connectme-secrets}}]
+          env:
+            - {name: PYTHONUNBUFFERED, value: "1"}
+          readinessProbe: {httpGet: {path: /healthz, port: http}, periodSeconds: 5}
+          livenessProbe: {httpGet: {path: /healthz, port: http}, periodSeconds: 10, failureThreshold: 6}
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: connectme-ai, namespace: connectme}
+spec:
+  selector: {app: connectme-ai}
+  ports: [{port: 8000, targetPort: http, name: http}]
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: {name: connectme-ai, namespace: connectme}
+spec:
+  minAvailable: 1
+  selector: {matchLabels: {app: connectme-ai}}

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../l10n/app_localizations.dart';
 
 import '../../../core/models.dart';
 import '../../../core/theme/tokens.dart';
@@ -113,7 +114,7 @@ class ActivityPicker extends StatelessWidget {
       spacing: 8,
       children: [
         if (allowNone)
-          ChoiceChip(label: const Text('Any'), selected: value == null, onSelected: (_) => onChanged(null)),
+          ChoiceChip(label: Text(AppLocalizations.of(context)?.sAny ?? 'Any'), selected: value == null, onSelected: (_) => onChanged(null)),
         for (final a in activities)
           ChoiceChip(
             key: Key('activity_$a'),

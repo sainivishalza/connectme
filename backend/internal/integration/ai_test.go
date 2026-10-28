@@ -27,6 +27,7 @@ type stubAI struct {
 	failing  bool
 	imageAct string // allow | review | block
 	reasons  []map[string]any
+	replyIn  []string // bodies sent to /wingman/reply
 	srv      *httptest.Server
 }
 
@@ -71,6 +72,9 @@ func (e *env) withAI() *stubAI {
 			json.NewEncoder(w).Encode(map[string]any{"safe": act == "allow", "action": act, "reason": "This content breaks our community rules.", "categories": []string{"test"}})
 		case "/moderate/image":
 			json.NewEncoder(w).Encode(map[string]any{"safe": st.imageAct == "allow", "action": st.imageAct, "reason": "This image is not allowed.", "categories": []string{"test"}})
+		case "/wingman/reply":
+			st.replyIn = append(st.replyIn, string(body))
+			json.NewEncoder(w).Encode(map[string]any{"replies": []string{"Sounds great, count me in!", "Which night works for everyone?", "I will bring the snacks, promise."}, "source": "llm"})
 		case "/score":
 			var in map[string]any
 			_ = json.Unmarshal(body, &in)

@@ -25,20 +25,23 @@ type route struct{ Method, Path string }
 // publicRoutes are the ONLY endpoints reachable without a session. Anything
 // new must be added here deliberately, which makes every addition visible in review.
 var publicRoutes = map[string]bool{
-	"GET /healthz": true, "GET /readyz": true,
+	"GET /healthz": true, "POST /moderation/appeals": true, "GET /readyz": true,
 	"POST /auth/register": true, "POST /auth/login": true, "POST /auth/refresh": true, "POST /auth/logout": true,
 	"POST /auth/forgot-password": true, "POST /auth/reset-password": true, "POST /auth/verify-email": true,
-	"POST /payments/webhook": true, // protected by the Stripe signature instead
-	"GET /videos/file/{id}":  true, // protected by a short-lived HMAC ticket instead (players cannot send headers)
+	"POST /payments/webhook":   true, // protected by the Stripe signature instead
+	"POST /digest/unsubscribe": true, // one-tap unsubscribe from the email; the signed token is the proof
+	"POST /safety/confirm":     true, // the trusted contact opens an emailed link; the unguessable token is the proof
+	"GET /investors/public":    true, // the ownership board is public by design: names and percentages only
+	"GET /videos/file/{id}":    true, // protected by a short-lived HMAC ticket instead (players cannot send headers)
 }
 
 // staffRoutes require moderator/admin permissions.
 var staffRoutes = map[string]bool{
-	"GET /moderation/reports": true, "POST /moderation/reports/{id}/resolve": true, "POST /geo/hotels": true, "POST /forums/boards": true, "POST /partners": true, "POST /partners/{id}/events": true, "DELETE /partners/events/{id}": true, "GET /partners/bookings": true, "POST /partners/bookings/{id}/decision": true, "GET /partners/{id}/report": true,
+	"GET /moderation/reports": true, "GET /moderation/analytics": true, "GET /moderation/members": true, "POST /moderation/reports/{id}/resolve": true, "POST /geo/hotels": true, "POST /forums/boards": true, "POST /partners": true, "POST /partners/{id}/events": true, "DELETE /partners/events/{id}": true, "GET /partners/bookings": true, "POST /partners/bookings/{id}/decision": true, "GET /partners/{id}/report": true,
 	"GET /moderation/stats": true, "GET /moderation/users/{ref}": true,
 	"GET /moderation/users/{ref}/photos/{id}": true, "GET /moderation/audit": true,
 	"POST /moderation/users/{ref}/ban": true, "POST /moderation/users/{ref}/unban": true,
-	"POST /moderation/live/{id}/end": true, "POST /moderation/posts/{id}/remove": true, "POST /moderation/videos/{id}/remove": true, "POST /payments/bookings/{id}/refund": true, "POST /moderation/users/{ref}/revoke-sessions": true, "POST /partners/{id}/managers": true, "GET /partners/{id}/managers": true, "DELETE /partners/{id}/managers/{ref}": true, "POST /moderation/videos/{id}/approve": true, "GET /moderation/queue": true, "GET /moderation/videos/{id}/ticket": true, "POST /moderation/forum/{kind}/{id}/remove": true,
+	"POST /moderation/live/{id}/end": true, "POST /moderation/posts/{id}/remove": true, "POST /moderation/videos/{id}/remove": true, "POST /payments/bookings/{id}/refund": true, "POST /sponsors": true, "GET /idcheck/queue": true, "GET /idcheck/{id}/image/{which}": true, "POST /idcheck/{id}/decision": true, "POST /partners/{id}/payouts": true, "GET /partners/{id}/payouts": true, "GET /sponsors": true, "GET /investors/admin/pledges": true, "GET /payouts/admin/queue": true, "POST /payouts/admin/{id}/pay": true, "POST /payouts/admin/{id}/reject": true, "GET /moderation/rooms": true, "GET /moderation/appeals": true, "POST /moderation/appeals/{id}/decide": true, "POST /investors/admin/pledges/{id}/{decision}": true, "POST /sponsors/{id}/pause": true, "POST /sponsors/{id}/resume": true, "POST /moderation/users/{ref}/revoke-sessions": true, "POST /partners/{id}/managers": true, "GET /partners/{id}/managers": true, "DELETE /partners/{id}/managers/{ref}": true, "POST /moderation/videos/{id}/approve": true, "GET /moderation/queue": true, "GET /moderation/videos/{id}/ticket": true, "POST /moderation/forum/{kind}/{id}/remove": true,
 }
 
 func routesOf(t *testing.T, h http.Handler) []route {

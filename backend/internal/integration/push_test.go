@@ -230,3 +230,35 @@ func TestSigningOutEverywhereForgetsEveryDevice(t *testing.T) {
 		t.Errorf("devices after sign-out-everywhere: %d %v", n, err)
 	}
 }
+
+func TestQuietHoursSilenceEverythingButCalls(t *testing.T) {
+	e := needChat(t)
+	a, b, m := e.matched()
+	e.register(b, tokA, "android")
+	now := time.Now().UTC()
+	mid := now.Hour()*60 + now.Minute()
+	start, end := (mid+1440-30)%1440, (mid+30)%1440
+	q := map[string]any{"quiet": map[string]any{"on": true, "start": start, "end": end, "tz_min": 0}}
+	if c, _ := e.call("PUT", "/push/prefs", map[string]any{"quiet": map[string]any{"on": true, "start": 2000, "end": 0, "tz_min": 0}}, b); c != 422 {
+		t.Errorf("bad window: %d", c)
+	}
+	if c, _ := e.call("PUT", "/push/prefs", q, b); c != 204 {
+		t.Fatalf("set quiet: %d", c)
+	}
+	// Other preferences were not reset by sending only the quiet window.
+	_, body := e.call("GET", "/push/prefs", nil, b)
+	if !strings.Contains(string(body), `"messages":true`) || !strings.Contains(string(body), `"on":true`) {
+		t.Errorf("prefs: %s", body)
+	}
+	e.send(a, m, map[string]any{"type": "text", "ciphertext": ct("shh")})
+	if got := e.quiet(); len(got) != 0 {
+		t.Errorf("message pushed during quiet hours: %+v", got)
+	}
+	// Switching it off restores delivery.
+	e.call("PUT", "/push/prefs", map[string]any{"quiet": map[string]any{"on": false, "start": start, "end": end, "tz_min": 0}}, b)
+	e.clearPushDedupe()
+	e.send(a, m, map[string]any{"type": "text", "ciphertext": ct("hello again")})
+	if got := e.waitPush(1); len(got) != 1 {
+		t.Errorf("not delivered after quiet hours off: %+v", got)
+	}
+}

@@ -24,7 +24,7 @@ type Handler struct {
 
 // Routes mounts the auth endpoints. Every route has an IP rate limit and a
 // body-size cap; /verification additionally requires authentication.
-func Routes(svc *Service, rdb *redis.Client, secret []byte, ver *VerificationHandler) http.Handler {
+func Routes(svc *Service, rdb *redis.Client, secret []byte) http.Handler {
 	h := &Handler{svc: svc}
 	r := chi.NewRouter()
 
@@ -45,10 +45,6 @@ func Routes(svc *Service, rdb *redis.Client, secret []byte, ver *VerificationHan
 	// current-password check from being used as a guessing oracle.
 	r.With(body, middleware.Auth(secret), middleware.RateLimit(rdb, "auth:changepw", 5, time.Hour, middleware.ByUser)).Post("/change-password", h.changePassword)
 	r.With(body, middleware.Auth(secret), middleware.RateLimit(rdb, "auth:logoutall", 10, time.Hour, middleware.ByUser)).Post("/logout-all", h.logoutAll)
-
-	r.With(middleware.MaxBody(uploadBodyLimit), middleware.Auth(secret),
-		middleware.RateLimit(rdb, "auth:idverify", 5, time.Hour, middleware.ByUser)).
-		Post("/verification", ver.Submit)
 	return r
 }
 

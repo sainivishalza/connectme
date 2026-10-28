@@ -89,6 +89,7 @@ type Post struct {
 	Mine        bool                 `json:"mine"`
 	Likes       int                  `json:"likes"`
 	Liked       bool                 `json:"liked"`
+	Comments    int                  `json:"comments"`
 	Claims      int                  `json:"claims,omitempty"`  // pending claims, on your own missed post
 	Claimed     bool                 `json:"claimed,omitempty"` // you already said "that's me"
 }
@@ -217,6 +218,7 @@ func (s *Service) query(ctx context.Context, viewerID string, f filter) ([]Post,
 		       p.author_id = $1::uuid,
 		       (SELECT COUNT(*) FROM post_likes l WHERE l.post_id = p.id),
 		       EXISTS (SELECT 1 FROM post_likes l WHERE l.post_id = p.id AND l.user_id = $1::uuid),
+		       (SELECT COUNT(*) FROM post_comments pc WHERE pc.post_id = p.id AND `+users.NotBlockedSQL("pc.author_id", "$1::uuid")+`),
 		       COALESCE(h.name, ''),
 		       CASE WHEN p.location IS NULL OR me.location IS NULL THEN -1 ELSE
 		         ST_Distance(p.location,
@@ -260,7 +262,7 @@ func (s *Service) query(ctx context.Context, viewerID string, f filter) ([]Post,
 	for rows.Next() {
 		var r rec
 		if err := rows.Scan(&r.p.ID, &r.p.Kind, &r.p.Body, &r.p.Alias, &r.author, &r.p.CreatedAt, &r.p.ExpiresAt, &r.p.CommunityID,
-			&r.p.Mine, &r.p.Likes, &r.p.Liked, &r.p.HotelName, &r.dist, &r.p.Claims, &r.p.Claimed); err != nil {
+			&r.p.Mine, &r.p.Likes, &r.p.Liked, &r.p.Comments, &r.p.HotelName, &r.dist, &r.p.Claims, &r.p.Claimed); err != nil {
 			rows.Close()
 			return nil, err
 		}

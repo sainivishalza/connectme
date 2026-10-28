@@ -186,11 +186,13 @@ func TestRandomExpiryEndsChatAndNeverRepairs(t *testing.T) {
 	if s := e.randStatus(a); s.State != "idle" {
 		t.Errorf("status after expiry: %q", s.State)
 	}
-	n, err := e.randSvc().Expire(context.Background())
-	if err != nil {
+	// Another expiry job (a running dev server shares this database) may get
+	// to the row first, so the count Expire returns proves nothing: the state
+	// of the match is what matters.
+	if _, err := e.randSvc().Expire(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if n < 1 || e.count(`SELECT COUNT(*) FROM matches WHERE id=$1::uuid AND status='rejected'`, m) != 1 {
+	if e.count(`SELECT COUNT(*) FROM matches WHERE id=$1::uuid AND status='rejected'`, m) != 1 {
 		t.Error("expiry job did not end the match")
 	}
 	// The same two people are never paired again.

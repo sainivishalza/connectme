@@ -96,7 +96,13 @@ func (h *Handler) prefs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) setPrefs(w http.ResponseWriter, r *http.Request) {
-	var p Prefs
+	// Fields left out keep their current value, so an older client that
+	// does not know the "live" switch cannot turn it off by omission.
+	p, err := h.svc.Prefs(r.Context(), middleware.UserID(r.Context()))
+	if err != nil {
+		fail(w, err)
+		return
+	}
 	if !decode(w, r, &p) {
 		return
 	}

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -6,11 +7,11 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/models.dart';
 import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/app_snack.dart';
-import '../../../shared/widgets/avatar.dart';
 import '../../../shared/widgets/states.dart';
 import '../profile_repository.dart';
 import '../../chapters/widgets/chapters_section.dart';
 import '../../videos/widgets/reel_section.dart';
+import '../widgets/photo_manager.dart';
 import '../widgets/voice_intro_section.dart';
 
 class EditProfileScreen extends ConsumerWidget {
@@ -20,7 +21,7 @@ class EditProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final me = ref.watch(meProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit profile')),
+      appBar: AppBar(title: Text(AppLocalizations.of(context)?.sEditProfile ?? 'Edit profile')),
       body: me.when(
         loading: () => const Loader(),
         error: (e, _) => ErrorView(error: e, onRetry: () => ref.invalidate(meProvider)),
@@ -114,41 +115,7 @@ class _EditProfileFormState extends ConsumerState<EditProfileForm> {
       children: [
         Text('Photos', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
-        SizedBox(
-          height: 96,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            children: [
-              for (final ph in p.photos)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: Stack(
-                    children: [
-                      Avatar(photoPath: ph.path, radius: 44),
-                      Positioned(
-                        right: -6,
-                        top: -6,
-                        child: IconButton(
-                          tooltip: 'Remove photo',
-                          icon: const Icon(Icons.cancel),
-                          onPressed: () => guarded(context, () async {
-                            await ref.read(profileRepositoryProvider).deletePhoto(ph.id);
-                            ref.invalidate(meProvider);
-                          }),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              if (p.photos.length < 6)
-                InkWell(
-                  key: const Key('add_photo'),
-                  onTap: _addPhoto,
-                  child: const CircleAvatar(radius: 44, child: Icon(Icons.add_a_photo_outlined)),
-                ),
-            ],
-          ),
-        ),
+        PhotoManager(photos: p.photos, onAdd: _addPhoto, onChanged: () => ref.invalidate(meProvider)),
         const SizedBox(height: 20),
         VoiceIntroSection(profile: p),
         const SizedBox(height: 16),

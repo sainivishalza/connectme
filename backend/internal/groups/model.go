@@ -115,5 +115,6 @@ type DateView struct {
 type Suggestions struct {
 	Venues      []string `json:"venues,omitempty"`
 	Icebreakers []string `json:"icebreakers,omitempty"`
-	Source      string   `json:"source"` // "ai" or "fallback"
+	Plan        []string `json:"plan,omitempty"` // a short outing plan (language-model wingman only)
+	Source      string   `json:"source"`         // "llm", "ai" (templates in the AI service) or "fallback"
 }

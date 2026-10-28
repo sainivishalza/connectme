@@ -7,6 +7,7 @@ import (
 	"errors"
 	"time"
 
+	"connectme/internal/push"
 	"connectme/internal/users"
 	"connectme/internal/videos"
 	"connectme/pkg/middleware"
@@ -58,15 +59,19 @@ type CallEnder interface {
 }
 
 type Service struct {
-	db      *pgxpool.Pool
-	users   *users.Service
-	revoker SessionRevoker
-	streams StreamEnder
-	calls   CallEnder
-	audio   CallEnder
-	videos  VideoModerator
-	forums  ForumRemover
+	db       *pgxpool.Pool
+	users    *users.Service
+	revoker  SessionRevoker
+	streams  StreamEnder
+	calls    CallEnder
+	audio    CallEnder
+	videos   VideoModerator
+	forums   ForumRemover
+	notifier push.Notifier
 }
+
+// SetNotifier tells reporters when staff have reviewed their report.
+func (s *Service) SetNotifier(n push.Notifier) { s.notifier = n }
 
 // SetCalls enables ending calls on a ban (nil when calls are off).
 func (s *Service) SetCalls(c CallEnder) { s.calls = c }
@@ -122,6 +127,10 @@ func (s *Service) Block(ctx context.Context, userID, ref string) error {
 	defer tx.Rollback(ctx) //nolint:errcheck
 	if _, err := tx.Exec(ctx,
 		`INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, userID, target); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx,
+		`DELETE FROM follows WHERE (follower_id=$1 AND followee_id=$2) OR (follower_id=$2 AND followee_id=$1)`, userID, target); err != nil {
 		return err
 	}
 	u1, u2 := userID, target
@@ -228,9 +237,10 @@ func (s *Service) Resolve(ctx context.Context, actorID, actorRole, reportID, act
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	var reported, targetRole, status string
+	var reporter *string
 	err = tx.QueryRow(ctx, `
-		SELECT r.reported_id::text, u.role, r.status FROM reports r JOIN users u ON u.id = r.reported_id
-		 WHERE r.id=$1 FOR UPDATE OF r`, reportID).Scan(&reported, &targetRole, &status)
+		SELECT r.reported_id::text, u.role, r.status, r.reporter_id::text FROM reports r JOIN users u ON u.id = r.reported_id
+		 WHERE r.id=$1 FOR UPDATE OF r`, reportID).Scan(&reported, &targetRole, &status, &reporter)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
 	}
@@ -259,6 +269,9 @@ func (s *Service) Resolve(ctx context.Context, actorID, actorRole, reportID, act
 	if err := s.audit(ctx, Actor{ID: actorID, Role: actorRole}, ActResolve, reported, reportID,
 		map[string]any{"action": action}); err != nil {
 		return err
+	}
+	if s.notifier != nil && reporter != nil {
+		s.notifier.Notify(ctx, *reporter, push.KindReport, reportID)
 	}
 	if action == "ban" {
 		// After commit. Banned users are also rejected at refresh time, so a

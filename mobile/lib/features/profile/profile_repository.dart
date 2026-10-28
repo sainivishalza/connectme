@@ -27,6 +27,8 @@ class ProfileRepository {
   Future<void> setVoiceIntro(Uint8List bytes, int seconds) =>
       _api.putBytes('/users/me/voice-intro', bytes, query: {'seconds': seconds});
 
+  Future<void> markOnboarded() => _api.post('/users/me/onboarded');
+
   Future<void> deleteVoiceIntro() => _api.delete('/users/me/voice-intro');
 
   Future<void> setLocation(double lat, double lng) => _api.put('/users/me/location', body: {'lat': lat, 'lng': lng});
@@ -36,7 +38,25 @@ class ProfileRepository {
         FormData.fromMap({'photo': MultipartFile.fromBytes(bytes, filename: filename)}),
       );
 
+  /// Saves some of the member's details; only the given keys change ("" clears).
+  Future<ProfileDetails> saveDetails(Map<String, dynamic> changes) async =>
+      ProfileDetails.fromJson(await _api.putMap('/users/me/details', body: changes));
+
+  Future<void> savePrompts(List<({String key, String answer})> prompts) => _api.put('/users/me/prompts', body: {
+        'prompts': [for (final p in prompts) {'key': p.key, 'answer': p.answer}],
+      });
+
+  Future<List<PromptDef>> promptBank() async => listOf((await _api.getMap('/users/prompts'))['prompts'], PromptDef.fromJson);
+
   Future<void> deletePhoto(String id) => _api.delete('/users/me/photos/$id');
+
+  /// Sets the order of the photos; the first one is the one shown on cards.
+  Future<void> reorderPhotos(List<String> ids) => _api.put('/users/me/photos/order', body: {'ids': ids});
+
+  Future<void> makeMainPhoto(String id) => _api.put('/users/me/photos/$id/main');
+
+  /// An empty caption clears it.
+  Future<void> setPhotoCaption(String id, String caption) => _api.put('/users/me/photos/$id/caption', body: {'caption': caption});
 
   /// The user's data export as pretty JSON text.
   Future<String> exportData() async =>

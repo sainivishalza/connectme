@@ -29,6 +29,7 @@ type ScorePerson struct {
 	Tags        []string
 	Age         *int
 	ActiveHours []int
+	Lifestyle   map[string]string
 }
 
 type ScoreInput struct {
@@ -96,6 +97,27 @@ func (s *Service) Rescore(ctx context.Context, userID, matchID string) (*Compat,
 	return s.score(ctx, matchID)
 }
 
+// lifestyle returns the answers that say what someone wants and how they live.
+// These are the same answers anonymous profiles already show.
+func (s *Service) lifestyle(ctx context.Context, userID string) (map[string]string, error) {
+	var goal, kids, drinking, smoking, exercise *string
+	err := s.db.QueryRow(ctx, `SELECT goal, kids, drinking, smoking, exercise FROM profile_details WHERE user_id=$1::uuid`, userID).
+		Scan(&goal, &kids, &drinking, &smoking, &exercise)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]string{}
+	for k, v := range map[string]*string{"goal": goal, "kids": kids, "drinking": drinking, "smoking": smoking, "exercise": exercise} {
+		if v != nil {
+			out[k] = *v
+		}
+	}
+	return out, nil
+}
+
 func (s *Service) score(ctx context.Context, matchID string) (*Compat, error) {
 	var (
 		u1, u2, mode string
@@ -124,7 +146,15 @@ func (s *Service) score(ctx context.Context, matchID string) (*Compat, error) {
 	if err != nil {
 		return nil, err
 	}
-	in := ScoreInput{A: ScorePerson{t1, a1, h1}, B: ScorePerson{t2, a2, h2}}
+	l1, err := s.lifestyle(ctx, u1)
+	if err != nil {
+		return nil, err
+	}
+	l2, err := s.lifestyle(ctx, u2)
+	if err != nil {
+		return nil, err
+	}
+	in := ScoreInput{A: ScorePerson{t1, a1, h1, l1}, B: ScorePerson{t2, a2, h2, l2}}
 	if s.history != nil {
 		if in.AToB, in.BToA, err = s.history.Counts(ctx, matchID, u1, u2); err != nil {
 			slog.Warn("matching: history unavailable", "err", err)

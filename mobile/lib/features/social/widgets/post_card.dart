@@ -25,6 +25,7 @@ class PostCard extends StatelessWidget {
     this.onDelete,
     this.onClaim,
     this.onOpenClaims,
+    this.onComments,
   });
 
   final Post post;
@@ -33,6 +34,7 @@ class PostCard extends StatelessWidget {
   final VoidCallback? onDelete;
   final VoidCallback? onClaim;
   final VoidCallback? onOpenClaims;
+  final VoidCallback? onComments;
 
   String get _who {
     if (post.mine) return 'You';
@@ -110,6 +112,13 @@ class PostCard extends StatelessWidget {
                   icon: Icon(post.liked ? Icons.favorite : Icons.favorite_border, size: 20, color: post.liked ? ModeLight.daylight.solid : null),
                   label: Text('${post.likes}'),
                 ),
+                if (onComments != null && post.kind != 'missed')
+                  TextButton.icon(
+                    key: Key('post_comments_${post.id}'),
+                    onPressed: onComments,
+                    icon: const Icon(Icons.mode_comment_outlined, size: 20),
+                    label: Text('${post.comments}'),
+                  ),
                 const Spacer(),
                 if (post.kind == 'missed' && !post.mine)
                   FilledButton.tonal(

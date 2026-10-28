@@ -21,6 +21,12 @@ from schemas import ImageVerdict
 MAX_BYTES = 10 * 1024 * 1024
 MAX_PIXELS = 40_000_000
 HAMMING_THRESHOLD = 5
+# Violence classifiers are far less reliable than nudity ones (sport, costumes
+# and film stills trigger them), so by default a violence score only ever sends
+# an image to a human; it never blocks on its own. Set VIOLENCE_BLOCK below 1
+# to let a very confident score block.
+VIOLENCE_REVIEW = float(os.environ.get("VIOLENCE_REVIEW", "0.7"))
+VIOLENCE_BLOCK = float(os.environ.get("VIOLENCE_BLOCK", "1.01"))
 Image.MAX_IMAGE_PIXELS = MAX_PIXELS
 
 # A classifier maps an image to category scores in [0, 1], e.g.
@@ -33,6 +39,10 @@ _classifier: Classifier | None = None
 def set_classifier(c: Classifier | None) -> None:
     global _classifier
     _classifier = c
+
+
+def has_classifier() -> bool:
+    return _classifier is not None
 
 
 def average_hash(img: Image.Image, size: int = 8) -> int:
@@ -97,8 +107,8 @@ def check_image(data: bytes) -> ImageVerdict:
 
     scores = _classifier(img)
     nud, vio = scores.get("nudity", 0.0), scores.get("violence", 0.0)
-    cats = [c for c, v in (("nudity", nud), ("violence", vio)) if v >= 0.5]
-    if nud >= 0.85 or vio >= 0.9:
+    cats = [c for c, v in (("nudity", nud), ("violence", vio)) if v >= (0.5 if c == "nudity" else VIOLENCE_REVIEW)]
+    if nud >= 0.85 or vio >= VIOLENCE_BLOCK:
         return ImageVerdict(safe=False, action="block", reason="This image breaks our community rules.",
                             categories=cats, screened_by_model=True)
     if cats:

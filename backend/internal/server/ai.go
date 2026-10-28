@@ -39,7 +39,7 @@ func (a aiAdapter) Score(ctx context.Context, in matching.ScoreInput) (*matching
 		if tags == nil {
 			tags = []string{}
 		}
-		return aiclient.Person{Tags: tags, Age: p.Age, ActiveHours: p.ActiveHours}
+		return aiclient.Person{Tags: tags, Age: p.Age, ActiveHours: p.ActiveHours, Lifestyle: p.Lifestyle}
 	}
 	r, err := a.c.Score(ctx, aiclient.ScoreRequest{
 		A: person(in.A), B: person(in.B), History: aiclient.History{AToB: in.AToB, BToA: in.BToA},

@@ -30,10 +30,16 @@ func Routes(svc *Service, rdb *redis.Client, secret []byte) http.Handler {
 	r.With(lim("swipe15", 50, 15*time.Minute), lim("swipe60", 100, time.Hour)).Post("/swipe", h.swipe)
 	r.With(lim("superlike", 30, time.Hour)).Post("/superlike", h.superlike)
 	r.With(lim("boost", 10, time.Hour)).Post("/boost", h.boost)
+	r.With(lim("rewind", 60, time.Hour)).Post("/rewind", h.rewind)
+	r.With(lim("read", 60, 15*time.Minute)).Get("/top-picks", h.topPicks)
 	r.With(lim("read", 300, 15*time.Minute)).Get("/matches", h.matches)
 	r.With(lim("read", 120, 15*time.Minute)).Get("/likes-you", h.likesYou)
 	r.With(lim("write", 60, time.Hour)).Delete("/matches/{id}", h.unmatch)
 	r.With(lim("write", 60, time.Hour)).Post("/matches/{id}/reveal", h.reveal)
+	r.With(lim("write", 60, time.Hour)).Post("/matches/{id}/reveal-voice", h.revealVoice)
+	r.With(lim("write", 30, time.Hour)).Post("/matches/{id}/reveal-timer", h.proposeReveal)
+	r.With(lim("write", 30, time.Hour)).Delete("/matches/{id}/reveal-timer", h.cancelReveal)
+	r.With(lim("read", 120, time.Hour)).Get("/matches/{id}/voice", h.matchVoice)
 	r.With(lim("rescore", 10, time.Hour)).Post("/matches/{id}/rescore", h.rescore)
 	return r
 }
@@ -47,11 +53,11 @@ func fail(w http.ResponseWriter, err error) {
 		middleware.WriteError(w, http.StatusNotFound, "not found")
 	case errors.Is(err, ErrSelf):
 		middleware.WriteError(w, http.StatusUnprocessableEntity, err.Error())
-	case errors.Is(err, ErrNeedsVerified):
+	case errors.Is(err, ErrNeedsVerified), errors.Is(err, users.ErrNeedsLocation), errors.Is(err, users.ErrNeedsVerification):
 		middleware.WriteError(w, http.StatusForbidden, err.Error())
 	case errors.Is(err, ErrAlreadySwiped):
 		middleware.WriteError(w, http.StatusConflict, err.Error())
-	case errors.Is(err, ErrInsufficient), errors.Is(err, ErrDailyLimit):
+	case errors.Is(err, ErrInsufficient), errors.Is(err, ErrDailyLimit), errors.Is(err, ErrNeedsGold):
 		middleware.WriteError(w, http.StatusPaymentRequired, err.Error())
 	default:
 		slog.Error("matching: internal error", "err", err)
@@ -71,7 +77,7 @@ func (h *Handler) swipe(w http.ResponseWriter, r *http.Request) {
 		middleware.WriteError(w, http.StatusUnprocessableEntity, "use /matching/superlike")
 		return
 	}
-	res, err := h.svc.Swipe(r.Context(), middleware.UserID(r.Context()), req.TargetRef, req.Action)
+	res, err := h.svc.Swipe(r.Context(), middleware.UserID(r.Context()), req.TargetRef, req.Action, req.Comment)
 	if err != nil {
 		fail(w, err)
 		return
@@ -87,12 +93,29 @@ func (h *Handler) superlike(w http.ResponseWriter, r *http.Request) {
 		middleware.WriteError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	res, err := h.svc.Swipe(r.Context(), middleware.UserID(r.Context()), req.TargetRef, ActionSuperLike)
+	res, err := h.svc.Swipe(r.Context(), middleware.UserID(r.Context()), req.TargetRef, ActionSuperLike, req.Comment)
 	if err != nil {
 		fail(w, err)
 		return
 	}
 	middleware.WriteJSON(w, http.StatusOK, res)
+}
+
+func (h *Handler) topPicks(w http.ResponseWriter, r *http.Request) {
+	picks, err := h.svc.TopPicks(r.Context(), middleware.UserID(r.Context()))
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	middleware.WriteJSON(w, http.StatusOK, map[string]any{"picks": picks})
+}
+
+func (h *Handler) rewind(w http.ResponseWriter, r *http.Request) {
+	if err := h.svc.Rewind(r.Context(), middleware.UserID(r.Context())); err != nil {
+		fail(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) boost(w http.ResponseWriter, r *http.Request) {
@@ -153,4 +176,49 @@ func (h *Handler) rescore(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	middleware.WriteJSON(w, http.StatusOK, res)
+}
+
+func (h *Handler) revealVoice(w http.ResponseWriter, r *http.Request) {
+	st, err := h.svc.RevealVoice(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "id"))
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	middleware.WriteJSON(w, http.StatusOK, st)
+}
+
+func (h *Handler) matchVoice(w http.ResponseWriter, r *http.Request) {
+	data, mime, err := h.svc.MatchVoice(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "id"))
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", mime)
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Content-Disposition", "inline")
+	_, _ = w.Write(data)
+}
+
+func (h *Handler) proposeReveal(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Hours int `json:"hours"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		middleware.WriteError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	t, err := h.svc.ProposeReveal(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "id"), req.Hours)
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	middleware.WriteJSON(w, http.StatusOK, t)
+}
+
+func (h *Handler) cancelReveal(w http.ResponseWriter, r *http.Request) {
+	if err := h.svc.CancelReveal(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "id")); err != nil {
+		fail(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

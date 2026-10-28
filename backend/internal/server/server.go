@@ -17,24 +17,39 @@ import (
 	"connectme/internal/chapters"
 	"connectme/internal/chat"
 	"connectme/internal/communities"
+	"connectme/internal/digest"
+	"connectme/internal/eventgroups"
+	"connectme/internal/follows"
 	"connectme/internal/forums"
 	"connectme/internal/games"
 	"connectme/internal/geo"
+	"connectme/internal/gifs"
 	"connectme/internal/groups"
+	"connectme/internal/idcheck"
+	"connectme/internal/investors"
+	"connectme/internal/levels"
 	"connectme/internal/live"
 	"connectme/internal/matching"
 	"connectme/internal/moderation"
 	"connectme/internal/partners"
 	"connectme/internal/payments"
+	"connectme/internal/payouts"
 	"connectme/internal/portal"
 	"connectme/internal/privacy"
 	"connectme/internal/push"
+	"connectme/internal/quiz"
 	"connectme/internal/random"
+	"connectme/internal/safety"
+	"connectme/internal/scamcheck"
+	"connectme/internal/signal"
 	"connectme/internal/social"
+	"connectme/internal/sounds"
+	"connectme/internal/sponsors"
 	"connectme/internal/users"
 	"connectme/internal/videos"
 	"connectme/pkg/config"
 	"connectme/pkg/database"
+	"connectme/pkg/errtrack"
 	"connectme/pkg/metrics"
 	"connectme/pkg/middleware"
 
@@ -56,8 +71,8 @@ func New(d Deps) *http.Server {
 	r := chi.NewRouter()
 	// Body-size caps are applied per route group (default 1 MiB), not globally,
 	// because upload routes need a larger limit and nested caps cannot raise it.
-	r.Use(metrics.HTTP, chimw.Recoverer, middleware.SecurityHeaders, middleware.CORS(d.Cfg.AllowedOrigins),
-		chimw.Timeout(30*time.Second))
+	r.Use(metrics.HTTP, errtrack.Recoverer, middleware.SecurityHeaders, middleware.CORS(d.Cfg.AllowedOrigins),
+		chimw.Timeout(30*time.Second), signal.Notify(d.Redis.Client))
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		middleware.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -70,27 +85,29 @@ func New(d Deps) *http.Server {
 	metrics.RegisterPool(d.PG)
 	secret := []byte(d.Cfg.JWTSecret)
 	tokens := auth.NewTokenStore(d.Redis.Client, d.Cfg.JWTRefreshExpiry)
-	var mailer auth.Mailer = auth.LogMailer{Production: d.Cfg.IsProduction()}
-	if d.Cfg.SMTPHost != "" {
-		sm, err := auth.NewSMTPMailer(auth.SMTPConfig{Host: d.Cfg.SMTPHost, Port: d.Cfg.SMTPPort,
-			Username: d.Cfg.SMTPUsername, Password: d.Cfg.SMTPPassword, From: d.Cfg.SMTPFrom,
-			AllowPlaintext: d.Cfg.SMTPAllowPlaintext})
-		if err != nil {
-			panic("smtp: " + err.Error()) // misconfiguration must stop startup, not silently drop emails
-		}
-		mailer = sm
-	}
+	mailer := newMailer(d)
 	svc := auth.NewService(d.PG, d.Redis.Client, tokens, mailer, secret, d.Cfg.JWTAccessExpiry)
-	ver := &auth.VerificationHandler{DB: d.PG, CSAM: auth.StubCSAMScanner{}, Liveness: auth.StubLiveness{}}
-	r.Mount("/auth", auth.Routes(svc, d.Redis.Client, secret, ver))
+	r.Mount("/auth", auth.Routes(svc, d.Redis.Client, secret))
 
 	usersSvc := newUsers(d)
 	pushSvc := newPush(d)
+	r.Mount("/sounds", sounds.Routes(d.Redis.Client, secret))
+	r.Mount("/payouts", payouts.Routes(payouts.NewService(d.PG), d.Redis.Client, secret))
+	r.Mount("/scamcheck", scamcheck.Routes(scamcheck.NewService(d.PG, scamcheck.NewHTTPChecker(d.Cfg.AIServiceURL, d.Cfg.AIServiceKey)), d.Redis.Client, secret))
+	r.Mount("/signal", signal.Routes(signal.NewService(d.PG), d.Redis.Client, secret))
+	r.Mount("/eventgroups", eventgroups.Routes(eventgroups.NewService(d.PG, usersSvc), d.Redis.Client, secret))
+	r.Mount("/digest", digest.Routes(digest.NewService(d.PG, plainSender{mailer}, secret, d.Cfg.AppURL), d.Redis.Client, secret))
+	safetySvc := safety.NewService(d.PG, usersSvc, plainSender{mailer}, d.Cfg.AppURL)
+	safetySvc.SetSMS(newSMS(d))
+	r.Mount("/safety", safety.Routes(safetySvc, d.Redis.Client, secret))
 	middleware.SetSessionCutoff(tokens.SessionCutoff)
 	r.Mount("/push", push.Routes(pushSvc, d.Redis.Client, secret))
 	r.Mount("/users", users.Routes(usersSvc, d.Redis.Client, secret))
 	r.Mount("/media", users.MediaRoutes(usersSvc, d.Redis.Client, secret))
 
+	r.Mount("/quiz", quiz.Routes(quiz.NewService(d.PG), d.Redis.Client, secret))
+	followsSvc := follows.NewService(d.PG, usersSvc)
+	r.Mount("/follows", follows.Routes(followsSvc, d.Redis.Client, secret))
 	chatSvc := NewChat(d)
 	if chatSvc != nil {
 		chatSvc.SetNotifier(pushSvc)
@@ -125,6 +142,7 @@ func New(d Deps) *http.Server {
 		liveSvc = live.NewService(d.PG, live.LiveKit{
 			WSURL: d.Cfg.LiveKitURL, APIKey: d.Cfg.LiveKitAPIKey, APISecret: d.Cfg.LiveKitAPISecret})
 		liveSvc.SetVetter(usersSvc)
+		liveSvc.SetAlerts(followsSvc, pushSvc)
 		r.Mount("/live", live.Routes(liveSvc, d.Redis.Client, secret))
 		callSvc = calls.NewService(d.PG, usersSvc, live.LiveKit{
 			WSURL: d.Cfg.LiveKitURL, APIKey: d.Cfg.LiveKitAPIKey, APISecret: d.Cfg.LiveKitAPISecret})
@@ -138,11 +156,24 @@ func New(d Deps) *http.Server {
 	partnerSvc := partners.NewService(d.PG, usersSvc)
 	partnerSvc.SetNotifier(pushSvc)
 	r.Mount("/partners", partners.Routes(partnerSvc, d.Redis.Client, secret))
+	if d.Cfg.EnableInvestors {
+		invSvc := investors.NewService(d.PG, d.Cfg.InvestorOwnerName, d.Cfg.InvestorPaymentNote)
+		if cents, ok := investors.ParseUSD(d.Cfg.InvestorPriceUSD); ok {
+			invSvc.SetModel(d.Cfg.InvestorModel, cents)
+		} else {
+			invSvc.SetModel(d.Cfg.InvestorModel, 0)
+		}
+		r.Mount("/investors", investors.Routes(invSvc, d.Redis.Client, secret))
+	}
+	r.Mount("/levels", levels.Routes(levels.NewService(d.PG), d.Redis.Client, secret))
+	r.Mount("/gifs", gifs.Routes(newGIFProvider(d.Cfg), d.Redis.Client, secret))
+	r.Mount("/sponsors", sponsors.Routes(sponsors.NewService(d.PG, d.Redis.Client, usersSvc), d.Redis.Client, secret))
 	forumSvc := forums.NewService(d.PG, usersSvc, secret)
 	r.Mount("/forums", forums.Routes(forumSvc, d.Redis.Client, secret))
 	var videoSvc *videos.Service
 	if d.Cfg.EnableVideo {
 		videoSvc = videos.NewService(d.PG, newMedia(d, "video"), usersSvc, secret)
+		videoSvc.SetNotifier(pushSvc)
 		if d.Cfg.VideoScanner == "http" {
 			videoSvc.SetScanner(videos.HTTPScanner{URL: d.Cfg.VideoScannerURL, Key: d.Cfg.VideoScannerKey})
 		}
@@ -152,7 +183,9 @@ func New(d Deps) *http.Server {
 	socialSvc.SetNotifier(pushSvc)
 	r.Mount("/social", social.Routes(socialSvc, d.Redis.Client, secret))
 	r.Mount("/communities", communities.Routes(communities.NewService(d.PG, usersSvc), socialSvc, d.Redis.Client, secret))
-	r.Mount("/games", games.Routes(games.NewService(d.PG), d.Redis.Client, secret))
+	gamesSvc := games.NewService(d.PG)
+	gamesSvc.SetVetter(usersSvc)
+	r.Mount("/games", games.Routes(gamesSvc, d.Redis.Client, secret))
 	randomSvc := random.NewService(d.PG, usersSvc)
 	randomSvc.SetNotifier(pushSvc)
 	r.Mount("/random", random.Routes(randomSvc, d.Redis.Client, secret))
@@ -167,11 +200,15 @@ func New(d Deps) *http.Server {
 	r.Mount("/admin", http.StripPrefix("", admin.Handler()))
 	r.Mount("/partner", http.StripPrefix("", portal.Handler()))
 	privacySvc := privacy.NewService(d.PG, tokens, usersSvc, chatPurger, billing)
+	idSvc := idcheck.NewService(d.PG, newMedia(d, "idcheck"), auth.StubCSAMScanner{})
+	privacySvc.AddFilePurger(idSvc)
+	r.Mount("/idcheck", idcheck.Routes(idSvc, d.Redis.Client, secret))
 	if videoSvc != nil {
 		privacySvc.AddFilePurger(videoSvc)
 	}
 	r.Mount("/privacy", privacy.Routes(privacySvc, d.Redis.Client, secret))
 	modSvc := moderation.NewService(d.PG, usersSvc, tokens)
+	modSvc.SetNotifier(pushSvc)
 	if liveSvc != nil {
 		modSvc.SetStreams(liveSvc)
 	}
@@ -235,8 +272,58 @@ func NewChat(d Deps) *chat.Service {
 	return chat.NewService(d.PG, d.Mongo.DB, newMedia(d, "chat"))
 }
 
+// newMailer builds the account mailer: SMTP when configured, the log otherwise.
+func newMailer(d Deps) auth.Mailer {
+	if d.Cfg.SMTPHost != "" {
+		sm, err := auth.NewSMTPMailer(auth.SMTPConfig{Host: d.Cfg.SMTPHost, Port: d.Cfg.SMTPPort,
+			Username: d.Cfg.SMTPUsername, Password: d.Cfg.SMTPPassword, From: d.Cfg.SMTPFrom,
+			AllowPlaintext: d.Cfg.SMTPAllowPlaintext})
+		if err != nil {
+			panic("smtp: " + err.Error()) // misconfiguration must stop startup, not silently drop emails
+		}
+		return sm
+	}
+	return auth.LogMailer{Production: d.Cfg.IsProduction()}
+}
+
+// newSMS returns the text-message sender: Twilio when configured, a logger in
+// development, and nothing in production without a provider (the feature then
+// says it is not available instead of pretending to send).
+func newSMS(d Deps) safety.SMS {
+	if d.Cfg.TwilioAccountSID != "" && d.Cfg.TwilioAuthToken != "" && d.Cfg.TwilioFrom != "" {
+		return safety.TwilioSMS{AccountSID: d.Cfg.TwilioAccountSID, AuthToken: d.Cfg.TwilioAuthToken, From: d.Cfg.TwilioFrom}
+	}
+	if d.Cfg.IsProduction() {
+		return nil
+	}
+	return safety.LogSMS{}
+}
+
+// plainSender lets the safety toolkit send plain emails through whichever
+// mailer is configured.
+type plainSender struct{ m auth.Mailer }
+
+func (p plainSender) Send(ctx context.Context, to, subject, body string) error {
+	if s, ok := p.m.(interface {
+		Send(ctx context.Context, to, subject, body string) error
+	}); ok {
+		return s.Send(ctx, to, subject, body)
+	}
+	return nil
+}
+
 // StartJobs launches background workers; they stop when ctx is cancelled.
 func StartJobs(ctx context.Context, d Deps) {
+	matching.NewService(d.PG, newUsers(d)).StartRevealJob(ctx, 5*time.Second)
+	eventgroups.NewService(d.PG, nil).StartJob(ctx, time.Hour)
+	games.NewService(d.PG).StartMaskedJob(ctx, 10*time.Minute)
+	digest.NewService(d.PG, plainSender{newMailer(d)}, []byte(d.Cfg.JWTSecret), d.Cfg.AppURL).StartJob(ctx, time.Hour)
+	{
+		sf := safety.NewService(d.PG, newUsers(d), plainSender{newMailer(d)}, d.Cfg.AppURL)
+		sf.SetNotifier(newPush(d))
+		sf.SetSMS(newSMS(d))
+		sf.StartJob(ctx, time.Minute)
+	}
 	var purgers []geo.Purger
 	if c := NewChat(d); c != nil {
 		if err := c.EnsureIndexes(ctx); err != nil {
@@ -248,6 +335,7 @@ func StartJobs(ctx context.Context, d Deps) {
 	NewGeo(d, purgers...).StartJob(ctx, time.Minute)
 	random.NewService(d.PG, newUsers(d)).StartJob(ctx, 15*time.Second)
 	social.NewService(d.PG, newUsers(d)).StartJob(ctx, 5*time.Minute)
+	idcheck.NewService(d.PG, newMedia(d, "idcheck"), auth.StubCSAMScanner{}).StartJob(ctx, 10*time.Minute)
 }
 
 // newAI returns the AI client, or nil when no AI service is configured.
@@ -330,4 +418,20 @@ func newPush(d Deps) *push.Service {
 	svc := push.NewService(d.PG, d.Redis.Client, p)
 	svc.Start(context.Background())
 	return svc
+}
+
+// newGIFProvider picks the GIF source: generated stickers by default, Tenor
+// when asked for and keyed, or nothing.
+func newGIFProvider(c config.Config) gifs.Provider {
+	switch c.GIFProvider {
+	case "tenor":
+		if c.TenorAPIKey != "" {
+			return gifs.NewTenor(c.TenorAPIKey)
+		}
+		slog.Warn("GIF_PROVIDER=tenor needs TENOR_API_KEY; GIFs are off")
+		return nil
+	case "none":
+		return nil
+	}
+	return gifs.NewBuiltin()
 }

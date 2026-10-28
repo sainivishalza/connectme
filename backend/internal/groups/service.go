@@ -17,13 +17,18 @@ type Service struct {
 	db        *pgxpool.Pool
 	users     *users.Service
 	suggester Suggester
+	replier   Replier
 }
 
 func NewService(db *pgxpool.Pool, u *users.Service, s Suggester) *Service {
 	if s == nil {
 		s = FallbackSuggester{}
 	}
-	return &Service{db: db, users: u, suggester: s}
+	svc := &Service{db: db, users: u, suggester: s}
+	if r, ok := s.(Replier); ok {
+		svc.replier = r
+	}
+	return svc
 }
 
 // requireVerified returns ErrNeedsVerified for unverified or banned callers.

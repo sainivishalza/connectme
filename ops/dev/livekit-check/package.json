@@ -1,0 +1,7 @@
+{
+  "name": "livekit-check",
+  "private": true,
+  "type": "module",
+  "description": "Dev-only: joins a LiveKit room with two tokens and proves audio flows from a speaker to a listener",
+  "dependencies": { "@livekit/rtc-node": "^0.13.0" }
+}

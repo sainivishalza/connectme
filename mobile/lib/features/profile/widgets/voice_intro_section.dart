@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models.dart';
@@ -67,7 +68,7 @@ class _VoiceIntroSectionState extends ConsumerState<VoiceIntroSection> {
                 load: () => ref.read(apiClientProvider).getBytes('/media/voice/${p.ref}'),
               ),
               const Spacer(),
-              TextButton(key: const Key('rerecord_voice_intro'), onPressed: () => setState(() => _recording = true), child: const Text('Record again')),
+              TextButton(key: const Key('rerecord_voice_intro'), onPressed: () => setState(() => _recording = true), child: Text(AppLocalizations.of(context)?.sRecordAgain ?? 'Record again')),
               IconButton(key: const Key('delete_voice_intro'), tooltip: 'Remove voice intro', onPressed: _remove, icon: const Icon(Icons.delete_outline)),
             ],
           )
@@ -76,7 +77,7 @@ class _VoiceIntroSectionState extends ConsumerState<VoiceIntroSection> {
             key: const Key('record_voice_intro'),
             onPressed: () => setState(() => _recording = true),
             icon: const Icon(Icons.mic_none),
-            label: const Text('Record a voice intro'),
+            label: Text(AppLocalizations.of(context)?.sRecordAVoiceIntro ?? 'Record a voice intro'),
           ),
       ],
     );

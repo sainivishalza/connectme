@@ -98,11 +98,25 @@ class DateView {
 }
 
 class Suggestions {
-  Suggestions({required this.venues, required this.icebreakers, required this.source});
+  Suggestions({required this.venues, required this.icebreakers, required this.source, this.plan = const []});
   final List<String> venues;
   final List<String> icebreakers;
+  final List<String> plan; // a short outing plan; only the AI wingman fills it
   final String source;
 
   factory Suggestions.fromJson(Map<String, dynamic> j) =>
-      Suggestions(venues: jsonStrings(j['venues']), icebreakers: jsonStrings(j['icebreakers']), source: jsonString(j['source']));
+      Suggestions(venues: jsonStrings(j['venues']), icebreakers: jsonStrings(j['icebreakers']), plan: jsonStrings(j['plan']), source: jsonString(j['source']));
+}
+
+class Logistics {
+  Logistics({required this.priceCoins, required this.paid, this.plan});
+  final int priceCoins;
+  final bool paid;
+  final Suggestions? plan;
+
+  factory Logistics.fromJson(Map<String, dynamic> j) => Logistics(
+        priceCoins: jsonInt(j['price_coins']),
+        paid: jsonBool(j['paid']),
+        plan: j['plan'] is Map ? Suggestions.fromJson(Map<String, dynamic>.from(j['plan'] as Map)) : null,
+      );
 }

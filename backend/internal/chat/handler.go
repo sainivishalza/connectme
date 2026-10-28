@@ -34,6 +34,7 @@ func Routes(svc *Service, rdb *redis.Client, secret []byte) http.Handler {
 	r.With(small, lim("send", 30, time.Minute)).Post("/matches/{id}/messages", h.send)
 	r.With(lim("read", 600, 15*time.Minute)).Post("/matches/{id}/read", h.read)
 	r.With(lim("delete", 20, time.Hour)).Delete("/matches/{id}", h.deleteConversation)
+	r.With(lim("unsend", 120, time.Hour)).Delete("/matches/{id}/messages/{mid}", h.unsend)
 
 	r.With(lim("fetchkeys", 60, time.Hour)).Get("/groups/{id}/keys", h.groupKeys)
 	r.With(small, lim("envelope", 120, time.Hour)).Post("/groups/{id}/envelopes", h.sendEnvelope)
@@ -143,6 +144,14 @@ func (h *Handler) read(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) deleteConversation(w http.ResponseWriter, r *http.Request) {
 	if err := h.svc.DeleteConversation(r.Context(), uid(r), chi.URLParam(r, "id")); err != nil {
+		fail(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) unsend(w http.ResponseWriter, r *http.Request) {
+	if err := h.svc.Unsend(r.Context(), uid(r), chi.URLParam(r, "id"), chi.URLParam(r, "mid")); err != nil {
 		fail(w, err)
 		return
 	}

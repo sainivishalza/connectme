@@ -23,7 +23,7 @@ func realProvider(t *testing.T) LiveKit {
 	if url == "" || secret == "" {
 		t.Skip("TEST_LIVEKIT_URL / TEST_LIVEKIT_SECRET not set")
 	}
-	return LiveKit{WSURL: url, APIKey: "devkey", APISecret: secret}
+	return LiveKit{WSURL: url, APIKey: keyOr("devkey"), APISecret: secret}
 }
 
 func twirp(t *testing.T, l LiveKit, method string, body any, grant map[string]any) (int, string) {
@@ -109,4 +109,12 @@ func wsStatus(t *testing.T, wsURL, token string) int {
 	}
 	defer resp.Body.Close()
 	return resp.StatusCode
+}
+
+// keyOr is the API key under test: TEST_LIVEKIT_KEY (a LiveKit Cloud project), else the local dev key.
+func keyOr(def string) string {
+	if k := os.Getenv("TEST_LIVEKIT_KEY"); k != "" {
+		return k
+	}
+	return def
 }

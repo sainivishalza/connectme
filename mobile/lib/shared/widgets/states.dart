@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/network/api_client.dart';
@@ -28,16 +29,8 @@ class EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 92,
-              height: 92,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: ModeLight.daylight.wash(t.brightness),
-              ),
-              child: Icon(icon, size: 40, color: t.colorScheme.onSurface),
-            ),
-            const SizedBox(height: 22),
+            _Emblem(icon: icon),
+            const SizedBox(height: 26),
             Text(title, style: t.textTheme.headlineSmall, textAlign: TextAlign.center),
             if (message != null) ...[
               const SizedBox(height: 10),
@@ -47,6 +40,62 @@ class EmptyState extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// The picture above an empty state: two tilted cards in the mode colours fan
+/// out behind a gradient disc, so a blank screen still feels like part of the
+/// app. It settles in once when the screen opens (not at all with reduced motion).
+class _Emblem extends StatelessWidget {
+  const _Emblem({required this.icon});
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    final dark = t.brightness == Brightness.dark;
+    final still = MediaQuery.of(context).disableAnimations;
+    Widget tile(ModeLight m, double angle, Offset shift) => Transform.translate(
+          offset: shift,
+          child: Transform.rotate(
+            angle: angle,
+            child: Container(
+              width: 74,
+              height: 96,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(Radii.control + 4),
+                gradient: m.wash(t.brightness),
+                border: Border.all(color: m.start.withValues(alpha: dark ? 0.35 : 0.5), width: 1.2),
+              ),
+            ),
+          ),
+        );
+    final art = SizedBox(
+      width: 168,
+      height: 128,
+      child: Stack(alignment: Alignment.center, children: [
+        tile(ModeLight.dusk, 0.24, const Offset(46, 6)),
+        tile(ModeLight.lamplight, -0.24, const Offset(-46, 6)),
+        Container(
+          width: 94,
+          height: 94,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: ModeLight.daylight.gradient,
+            boxShadow: [BoxShadow(color: ModeLight.daylight.solid.withValues(alpha: 0.35), blurRadius: 28, offset: const Offset(0, 10))],
+          ),
+          child: Icon(icon, size: 42, color: ModeLight.daylight.ink),
+        ),
+      ]),
+    );
+    if (still) return art;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.86, end: 1),
+      duration: const Duration(milliseconds: 520),
+      curve: Curves.easeOutBack,
+      builder: (c, v, child) => Opacity(opacity: ((v - 0.86) / 0.14).clamp(0.0, 1.0), child: Transform.scale(scale: v, child: child)),
+      child: art,
     );
   }
 }
@@ -66,7 +115,7 @@ class ErrorView extends StatelessWidget {
       icon: Icons.error_outline,
       title: 'Could not load',
       message: messageOf(error),
-      action: onRetry == null ? null : OutlinedButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh), label: const Text('Try again')),
+      action: onRetry == null ? null : OutlinedButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh), label: Text(AppLocalizations.of(context)?.sTryAgain ?? 'Try again')),
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -44,13 +45,13 @@ class _BrowseGroupsScreenState extends ConsumerState<BrowseGroupsScreen> {
           title: const Text("It's a group match!"),
           content: Text('You and ${g.name} are matched. Say hello and plan your date.'),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(c), child: const Text('Later')),
+            TextButton(onPressed: () => Navigator.pop(c), child: Text(AppLocalizations.of(context)?.sLater ?? 'Later')),
             FilledButton(
               onPressed: () {
                 Navigator.pop(c);
                 context.go('/chats/$gm?group=1');
               },
-              child: const Text('Open chat'),
+              child: Text(AppLocalizations.of(context)?.sOpenChat ?? 'Open chat'),
             ),
           ],
         ),
@@ -63,7 +64,7 @@ class _BrowseGroupsScreenState extends ConsumerState<BrowseGroupsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Groups nearby')),
+      appBar: AppBar(title: Text(AppLocalizations.of(context)?.sGroupsNearby ?? 'Groups nearby')),
       body: Column(
         children: [
           Padding(

@@ -53,7 +53,11 @@ func (l LiveKit) Token(room, identity string, publish bool, ttl time.Duration) (
 }
 
 func (l LiveKit) Close(ctx context.Context, room string) error {
-	return l.twirp(ctx, "DeleteRoom", map[string]string{"room": room}, room)
+	err := l.twirp(ctx, "DeleteRoom", map[string]string{"room": room}, room)
+	if err != nil && strings.Contains(err.Error(), "404") {
+		return nil // LiveKit creates rooms when the first person connects; nobody came, so nothing to close
+	}
+	return err
 }
 
 // SetPublish lets or stops one participant publishing audio/video (used by

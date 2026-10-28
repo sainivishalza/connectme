@@ -25,6 +25,17 @@ func (m LogMailer) log(kind, to, token string) error {
 	return nil
 }
 
+// Send writes a plain email to the log in development. The body can hold links
+// meant for someone else, so production never logs it.
+func (m LogMailer) Send(_ context.Context, to, subject, body string) error {
+	if m.Production {
+		slog.Warn("email not sent: no mail provider configured", "kind", "plain")
+		return nil
+	}
+	slog.Info("DEV email", "kind", "plain", "to", to, "subject", subject, "body", body)
+	return nil
+}
+
 func (m LogMailer) SendVerification(_ context.Context, to, token string) error {
 	return m.log("verify_email", to, token)
 }

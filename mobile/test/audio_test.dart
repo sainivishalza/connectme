@@ -196,7 +196,7 @@ void main() {
     ));
     await t.pumpAndSettle();
     expect(find.text('Poetry hour'), findsOneWidget);
-    expect(find.text('2 on stage · 5 listening · anonymous'), findsOneWidget);
+    expect(find.text('Open mic · 2 on stage · 5 listening · anonymous'), findsOneWidget);
 
     await t.tap(find.byKey(const Key('start_audio')));
     await t.pumpAndSettle();
@@ -207,7 +207,7 @@ void main() {
     await t.pump();
     await t.pump(const Duration(milliseconds: 500));
     await t.pump(const Duration(milliseconds: 500));
-    expect(sent, {'title': 'Sunday jazz', 'anonymous': true});
+    expect(sent, {'title': 'Sunday jazz', 'anonymous': true, 'topic': 'open'});
     expect(medias.single.token, 'TOK-host');
     expect(medias.single.mic, isTrue);
     expect(find.byKey(const Key('end_audio')), findsOneWidget);

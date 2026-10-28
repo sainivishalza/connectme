@@ -19,6 +19,8 @@ function startApi() {
     const tok = (req.headers.authorization || '').replace('Bearer ', '');
     let user;
     try { user = jwt.verify(tok, SECRET).sub; } catch { res.writeHead(401).end(); return; }
+    const sg = req.url.match(/^\/signal\/(live|game)\/([^/]+)\/access$/);
+    if (sg) { res.writeHead(sg[2] === MATCH && user !== 'carol' ? 204 : 404).end(); return; }
     const m = req.url.match(/^\/chat\/matches\/([^/]+)\/(access|messages|read)$/);
     if (!m || !state.members.get(m[1])?.has(user)) { res.writeHead(404).end(); return; }
     let body = '';
@@ -201,4 +203,23 @@ test('typing, receipts and joins share a per-user budget so a socket cannot floo
   assert.ok(typingSeen <= 19, `the peer was not flooded (saw ${typingSeen})`);
   // The other person is unaffected.
   assert.deepEqual(await h.emit(b, 'join_match', { match_id: MATCH }), { ok: true });
+});
+
+test('a signal reaches only the sockets allowed to watch that topic', async (t) => {
+  const h = await harness(t);
+  const a = h.client(sign('alice')), c = h.client(sign('carol'));
+  await Promise.all([h.ready(a), h.ready(c)]);
+  assert.deepEqual(await h.emit(a, 'watch', { kind: 'game', id: MATCH }), { ok: true });
+  assert.equal((await h.emit(c, 'watch', { kind: 'game', id: MATCH })).error, 'not_found');
+  assert.equal((await h.emit(a, 'watch', { kind: 'nope', id: MATCH })).error, 'invalid');
+  assert.equal((await h.emit(a, 'watch', { kind: 'game', id: 'x' })).error, 'invalid');
+
+  const got = h.next(a, 'signal');
+  h.rt.signal(`game:${MATCH}`);
+  assert.deepEqual(await got, { topic: `game:${MATCH}` });
+  await h.silent(c, 'signal');
+
+  await h.emit(a, 'unwatch', { kind: 'game', id: MATCH });
+  h.rt.signal(`game:${MATCH}`);
+  await h.silent(a, 'signal');
 });

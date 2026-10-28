@@ -41,6 +41,7 @@ type Perks struct {
 	Invisibility      bool `json:"invisibility"`
 	PriorityMatching  bool `json:"priority_matching"`
 	VIPBadge          bool `json:"vip_badge"`
+	Rewind            bool `json:"rewind"` // undo the most recent pass
 }
 
 // PerksFor returns the cumulative perks of a tier.
@@ -50,7 +51,7 @@ func PerksFor(t Tier) Perks {
 		p.UnlimitedLikes, p.NoAds, p.SuperLikesPerDay = true, true, 5
 	}
 	if t.AtLeast(Gold) {
-		p.SeeWhoLikedYou, p.Invisibility, p.FreeBoostsPerWeek = true, true, 1
+		p.SeeWhoLikedYou, p.Invisibility, p.FreeBoostsPerWeek, p.Rewind = true, true, 1, true
 	}
 	if t.AtLeast(Platinum) {
 		p.PriorityMatching, p.VIPBadge, p.FreeBoostsPerWeek = true, true, -1

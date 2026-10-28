@@ -159,7 +159,7 @@ func TestFCMTokenExchangeFailureIsAnError(t *testing.T) {
 }
 
 func TestContentIsGenericForEveryKind(t *testing.T) {
-	for _, k := range []Kind{KindMessage, KindMatch, KindCall, KindBooking} {
+	for _, k := range []Kind{KindMessage, KindMatch, KindCall, KindBooking, KindReport} {
 		m := content(k)
 		if m.Title != "ConnectMe" || m.Body == "" || len(m.Body) > 40 || strings.ContainsAny(m.Body, "{}%") {
 			t.Errorf("%s: %+v", k, m)

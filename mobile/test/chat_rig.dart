@@ -41,6 +41,13 @@ class FakeServer extends ChatRepository {
   Future<void> markRead(String convId) async {}
   @override
   Future<void> deleteConversation(String convId) async => stored.clear();
+  @override
+  Future<void> unsendMessage(String convId, String messageId) async {
+    unsent.add(messageId);
+    stored.removeWhere((w) => w.id == messageId);
+  }
+
+  final List<String> unsent = [];
 
   @override
   Future<WireMessage> send(String convId, {required String type, required String ciphertextB64, String? mediaId, int burnAfterS = 0}) async {
@@ -92,6 +99,18 @@ class FakeRealtime implements RealtimeClient {
   Stream<Map<String, dynamic>> get receipts => rec.stream;
   @override
   Stream<String> get closed => cls.stream;
+  final sig = StreamController<String>.broadcast();
+  @override
+  Stream<String> get signals => sig.stream;
+  final watching = <String>[];
+  bool watchOk = true;
+  @override
+  Future<bool> watch(String kind, String id) async {
+    watching.add('$kind:$id');
+    return watchOk;
+  }
+  @override
+  void unwatch(String kind, String id) => watching.remove('$kind:$id');
   @override
   bool get connected => false; // forces the REST path for sends
   @override
@@ -166,7 +185,10 @@ class Rig {
   /// Bob -> Alice (Alice's bundle is what the server would hand Bob). Built
   /// straight from Alice's store: her one-time keys are already marked as
   /// uploaded by the time a test calls this.
-  Future<String> bobSays(String text) async {
+  Future<String> bobSays(String text) => bobSendsPayload(MessagePayload.text(text));
+
+  /// Bob -> Alice with any payload (a reply, a reaction, an unsend notice).
+  Future<String> bobSendsPayload(MessagePayload p) async {
     final store = aliceCrypto.store;
     final identity = await store.getIdentityKeyPair();
     final spk = (await store.loadSignedPreKeys()).first;
@@ -180,7 +202,7 @@ class Rig {
       'signed_prekey_sig': base64.encode(spk.signature),
       'prekey': {'key_id': preId, 'public_key': base64.encode(pre.getKeyPair().publicKey.serialize())},
     };
-    final payload = MessagePayload.text(text).encode();
+    final payload = p.encode();
     final bytes = await bob.encryptDirect(conv, Uint8List.fromList(payload), () async => bundle);
     return base64.encode(bytes);
   }

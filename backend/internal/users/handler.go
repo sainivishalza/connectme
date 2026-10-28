@@ -33,10 +33,17 @@ func Routes(svc *Service, rdb *redis.Client, secret []byte) http.Handler {
 	r.With(json, limit("mode", 10, time.Hour)).Post("/me/mode", h.setMode)
 	r.With(json, limit("location", 60, 15*time.Minute)).Put("/me/location", h.setLocation)
 	r.With(json, limit("mode", 10, time.Hour)).Post("/me/invisible", h.setInvisible)
+	r.With(limit("update", 30, 15*time.Minute)).Post("/me/onboarded", h.onboarded)
 	r.With(middleware.MaxBody(MaxUploadBytes+(512<<10)), limit("photo", 20, time.Hour)).Post("/me/photos", h.uploadPhoto)
 	r.With(limit("photo", 20, time.Hour)).Delete("/me/photos/{id}", h.deletePhoto)
+	r.With(json, limit("photo-edit", 60, time.Hour)).Put("/me/photos/order", h.reorderPhotos)
+	r.With(limit("photo-edit", 60, time.Hour)).Put("/me/photos/{id}/main", h.mainPhoto)
+	r.With(json, limit("photo-edit", 60, time.Hour)).Put("/me/photos/{id}/caption", h.photoCaption)
 	r.With(middleware.MaxBody(MaxVoiceBytes+4096), limit("voice", 10, time.Hour)).Put("/me/voice-intro", h.putVoice)
 	r.With(limit("voice", 20, time.Hour)).Delete("/me/voice-intro", h.deleteVoice)
+	r.With(json, limit("update", 30, 15*time.Minute)).Put("/me/details", h.putDetails)
+	r.With(json, limit("update", 30, 15*time.Minute)).Put("/me/prompts", h.putPrompts)
+	r.With(limit("read", 120, 15*time.Minute)).Get("/prompts", h.promptBank)
 	r.With(limit("nearby", 60, 15*time.Minute)).Get("/nearby", h.nearby)
 	r.With(limit("read", 300, 15*time.Minute)).Get("/{ref}", h.getPublic)
 	return r
@@ -190,6 +197,42 @@ func (h *Handler) deletePhoto(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *Handler) reorderPhotos(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		IDs []string `json:"ids"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if err := h.svc.ReorderPhotos(r.Context(), middleware.UserID(r.Context()), req.IDs); err != nil {
+		fail(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) mainPhoto(w http.ResponseWriter, r *http.Request) {
+	if err := h.svc.MakeMainPhoto(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "id")); err != nil {
+		fail(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) photoCaption(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Caption string `json:"caption"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if err := h.svc.SetPhotoCaption(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "id"), req.Caption); err != nil {
+		fail(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *Handler) getPublic(w http.ResponseWriter, r *http.Request) {
 	p, err := h.svc.GetPublic(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "ref"))
 	if err != nil {
@@ -267,6 +310,20 @@ func parseNearby(r *http.Request) (NearbyFilter, error) {
 		}
 		f.Mode = m
 	}
+	for _, c := range []struct {
+		key     string
+		allowed map[string]bool
+		dst     *string
+	}{{"goal", goals, &f.Goal}, {"kids", kidsOpts, &f.Kids}, {"drinking", drinkOpts, &f.Drinking},
+		{"smoking", drinkOpts, &f.Smoking}, {"exercise", exerOpts, &f.Exercise}, {"language", langCodes, &f.Language}} {
+		if v := q.Get(c.key); v != "" {
+			if !c.allowed[v] {
+				return f, ValidationError{"invalid " + c.key}
+			}
+			*c.dst = v
+		}
+	}
+	f.VerifiedOnly = q.Get("verified") == "true"
 	if t := q.Get("tags"); t != "" {
 		tags, err := normalizeTags(strings.Split(t, ","))
 		if err != nil {
@@ -275,6 +332,38 @@ func parseNearby(r *http.Request) (NearbyFilter, error) {
 		f.Tags = tags
 	}
 	return f, nil
+}
+
+func (h *Handler) putDetails(w http.ResponseWriter, r *http.Request) {
+	var req DetailsRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	d, err := h.svc.SetDetails(r.Context(), middleware.UserID(r.Context()), req)
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	middleware.WriteJSON(w, http.StatusOK, d)
+}
+
+func (h *Handler) putPrompts(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Prompts []PromptIn `json:"prompts"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	out, err := h.svc.SetPrompts(r.Context(), middleware.UserID(r.Context()), req.Prompts)
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	middleware.WriteJSON(w, http.StatusOK, map[string]any{"prompts": out})
+}
+
+func (h *Handler) promptBank(w http.ResponseWriter, _ *http.Request) {
+	middleware.WriteJSON(w, http.StatusOK, map[string]any{"prompts": PromptBank})
 }
 
 func (h *Handler) setInvisible(w http.ResponseWriter, r *http.Request) {
@@ -290,4 +379,12 @@ func (h *Handler) setInvisible(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	middleware.WriteJSON(w, http.StatusOK, p)
+}
+
+func (h *Handler) onboarded(w http.ResponseWriter, r *http.Request) {
+	if err := h.svc.MarkOnboarded(r.Context(), middleware.UserID(r.Context())); err != nil {
+		fail(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

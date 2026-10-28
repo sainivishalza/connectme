@@ -12,7 +12,9 @@ class AudioRoom {
     this.speakers = 0,
     this.listeners = 0,
     this.mine = false,
+    this.topic = 'open',
   });
+  final String topic;
   final String id;
   final String title;
   final bool anonymous;
@@ -27,6 +29,7 @@ class AudioRoom {
         speakers: jsonInt(j['speakers']),
         listeners: jsonInt(j['listeners']),
         mine: jsonBool(j['mine']),
+        topic: jsonString(j['topic']).isEmpty ? 'open' : jsonString(j['topic']),
       );
 }
 
@@ -89,10 +92,11 @@ class AudioRepository {
   AudioRepository(this._api);
   final ApiClient _api;
 
-  Future<List<AudioRoom>> rooms() async => listOf((await _api.getMap('/audio/rooms'))['rooms'], AudioRoom.fromJson);
+  Future<List<AudioRoom>> rooms({String topic = ''}) async =>
+      listOf((await _api.getMap('/audio/rooms', query: {if (topic.isNotEmpty) 'topic': topic}))['rooms'], AudioRoom.fromJson);
 
-  Future<StartedAudio> start(String title, {required bool anonymous}) async {
-    final m = await _api.postMap('/audio/rooms', body: {'title': title, 'anonymous': anonymous});
+  Future<StartedAudio> start(String title, {required bool anonymous, String topic = 'open'}) async {
+    final m = await _api.postMap('/audio/rooms', body: {'title': title, 'anonymous': anonymous, 'topic': topic});
     return StartedAudio(
       AudioRoom.fromJson(Map<String, dynamic>.from(m['room'] as Map)),
       AudioConnect.fromJson(Map<String, dynamic>.from(m['connect'] as Map)),
@@ -123,4 +127,27 @@ class AudioRepository {
 
 final audioRepositoryProvider = Provider<AudioRepository>((ref) => AudioRepository(ref.watch(apiClientProvider)));
 
-final audioRoomsProvider = FutureProvider.autoDispose<List<AudioRoom>>((ref) => ref.watch(audioRepositoryProvider).rooms());
+const audioTopics = ['open', 'love', 'stories', 'music', 'advice', 'nightowls', 'confess'];
+
+String audioTopicLabel(String t) => switch (t) {
+      '' => 'All',
+      'open' => 'Open mic',
+      'love' => 'Love and dating',
+      'stories' => 'Stories',
+      'music' => 'Music',
+      'advice' => 'Advice',
+      'nightowls' => 'Night owls',
+      'confess' => 'Confessions',
+      _ => t,
+    };
+
+class AudioTopicFilter extends Notifier<String> {
+  @override
+  String build() => '';
+  void set(String t) => state = t;
+}
+
+final audioTopicProvider = NotifierProvider<AudioTopicFilter, String>(AudioTopicFilter.new);
+
+final audioRoomsProvider =
+    FutureProvider.autoDispose<List<AudioRoom>>((ref) => ref.watch(audioRepositoryProvider).rooms(topic: ref.watch(audioTopicProvider)));

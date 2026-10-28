@@ -3,6 +3,7 @@ package matching
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"connectme/internal/entitlements"
@@ -10,6 +11,7 @@ import (
 	"connectme/internal/users"
 	"connectme/internal/wallet"
 	"connectme/pkg/metrics"
+	"connectme/pkg/utils"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -33,9 +35,13 @@ func NewService(db *pgxpool.Pool, u *users.Service) *Service { return &Service{d
 //
 // A per-pair advisory lock serialises the two directions, so two people
 // liking each other at the same instant always produce exactly one match.
-func (s *Service) Swipe(ctx context.Context, userID, targetRef string, action Action) (*SwipeResult, error) {
+func (s *Service) Swipe(ctx context.Context, userID, targetRef string, action Action, comment string) (*SwipeResult, error) {
 	if action != ActionLike && action != ActionPass && action != ActionSuperLike {
 		return nil, users.ValidationError{Msg: "action must be like, pass or superlike"}
+	}
+	comment, err := s.cleanComment(ctx, userID, action, comment)
+	if err != nil {
+		return nil, err
 	}
 	targetID, err := s.users.ResolveVisibleRef(ctx, userID, targetRef)
 	if errors.Is(err, users.ErrNotFound) {
@@ -120,8 +126,8 @@ func (s *Service) Swipe(ctx context.Context, userID, targetRef string, action Ac
 		 WHERE a.user_id=$1 AND b.user_id=$2 AND a.checked_out_at IS NULL AND b.checked_out_at IS NULL`,
 		userID, targetID).Scan(&swipeCheckin)
 	if _, err := tx.Exec(ctx,
-		`INSERT INTO swipes (actor_id, target_id, action, checkin_id) VALUES ($1,$2,$3,$4)`,
-		userID, targetID, string(action), swipeCheckin); err != nil {
+		`INSERT INTO swipes (actor_id, target_id, action, checkin_id, comment) VALUES ($1,$2,$3,$4,NULLIF($5,''))`,
+		userID, targetID, string(action), swipeCheckin, comment); err != nil {
 		return nil, err
 	}
 	if action == ActionPass {
@@ -150,7 +156,43 @@ func (s *Service) Swipe(ctx context.Context, userID, targetRef string, action Ac
 	if s.notifier != nil {
 		s.notifier.Notify(ctx, targetID, push.KindMatch, matchID) // the swiper already sees it
 	}
-	return &SwipeResult{Matched: true, MatchID: matchID}, nil
+	res := &SwipeResult{Matched: true, MatchID: matchID}
+	res.TheirComment = s.visibleComment(ctx, userID, targetID)
+	return res, nil
+}
+
+// cleanComment validates the note sent with a like. Notes go through the same
+// screening as a bio, are one line of at most 140 characters, and only exist
+// on likes.
+func (s *Service) cleanComment(ctx context.Context, userID string, action Action, c string) (string, error) {
+	c = strings.TrimSpace(utils.StripTags(c))
+	if c == "" {
+		return "", nil
+	}
+	if action == ActionPass {
+		return "", users.ValidationError{Msg: "a note can only go with a like"}
+	}
+	if n := len([]rune(c)); n > 140 || strings.ContainsAny(c, "\r\n") {
+		return "", users.ValidationError{Msg: "a note is one line of at most 140 characters"}
+	}
+	if err := s.users.VetText(ctx, userID, "intro", c); err != nil {
+		return "", err
+	}
+	return c, nil
+}
+
+// visibleComment is the note `from` sent to `to` with a like, but only if `from`
+// is shown to `to` in full: notes are free text and must not unmask anyone.
+func (s *Service) visibleComment(ctx context.Context, to, from string) string {
+	var c *string
+	if s.db.QueryRow(ctx, `SELECT comment FROM swipes WHERE actor_id=$1::uuid AND target_id=$2::uuid`, from, to).Scan(&c) != nil || c == nil {
+		return ""
+	}
+	card, err := s.users.Card(ctx, to, from, "")
+	if err != nil || card.Anonymous {
+		return ""
+	}
+	return *c
 }
 
 // createMatch derives the match mode from the stricter of the two people's

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../shared/widgets/app_snack.dart';
@@ -57,7 +58,7 @@ class _ReelSectionState extends ConsumerState<ReelSection> {
             icon: const Icon(Icons.play_circle_outline),
             label: Text('Watch (${clip.seconds}s)'),
           ),
-          TextButton(key: const Key('remove_reel'), onPressed: () => _remove(clip.id), child: const Text('Remove')),
+          TextButton(key: const Key('remove_reel'), onPressed: () => _remove(clip.id), child: Text(AppLocalizations.of(context)?.sRemove ?? 'Remove')),
         ],
         FilledButton.tonalIcon(
           key: const Key('add_reel'),
@@ -65,7 +66,7 @@ class _ReelSectionState extends ConsumerState<ReelSection> {
           icon: const Icon(Icons.video_library_outlined),
           label: Text(clip == null ? 'Add a video' : 'Replace'),
         ),
-        OutlinedButton.icon(key: const Key('record_reel'), onPressed: () => _pick(true), icon: const Icon(Icons.videocam_outlined), label: const Text('Record')),
+        OutlinedButton.icon(key: const Key('record_reel'), onPressed: () => _pick(true), icon: const Icon(Icons.videocam_outlined), label: Text(AppLocalizations.of(context)?.sRecord ?? 'Record')),
       ]),
     ]);
   }

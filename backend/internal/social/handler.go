@@ -31,6 +31,10 @@ func Routes(svc *Service, rdb *redis.Client, secret []byte) http.Handler {
 	r.With(lim("write", 120, time.Hour)).Delete("/posts/{id}", h.remove)
 	r.With(lim("write", 300, time.Hour)).Post("/posts/{id}/like", h.like)
 	r.With(lim("report", 30, time.Hour)).Post("/posts/{id}/report", h.report)
+	r.With(lim("comment", 60, time.Hour)).Post("/posts/{id}/comments", h.comment)
+	r.With(lim("read", 120, time.Minute)).Get("/posts/{id}/comments", h.comments)
+	r.With(lim("write", 120, time.Hour)).Delete("/comments/{id}", h.removeComment)
+	r.With(lim("report", 30, time.Hour)).Post("/comments/{id}/report", h.reportComment)
 	r.With(lim("claim", 20, time.Hour)).Post("/posts/{id}/claim", h.claim)
 	r.With(lim("read", 60, time.Minute)).Get("/posts/{id}/claims", h.claims)
 	r.With(lim("answer", 120, time.Hour)).Post("/claims/{id}/accept", h.accept)
@@ -165,6 +169,52 @@ func (h *Handler) accept(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) decline(w http.ResponseWriter, r *http.Request) {
 	if err := h.svc.Decline(r.Context(), uid(r), chi.URLParam(r, "id")); err != nil {
+		fail(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) comment(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Body string `json:"body"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	c, err := h.svc.Comment(r.Context(), uid(r), chi.URLParam(r, "id"), req.Body)
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	middleware.WriteJSON(w, http.StatusCreated, c)
+}
+
+func (h *Handler) comments(w http.ResponseWriter, r *http.Request) {
+	cs, err := h.svc.Comments(r.Context(), uid(r), chi.URLParam(r, "id"))
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	middleware.WriteJSON(w, http.StatusOK, map[string]any{"comments": cs})
+}
+
+func (h *Handler) removeComment(w http.ResponseWriter, r *http.Request) {
+	if err := h.svc.DeleteComment(r.Context(), uid(r), chi.URLParam(r, "id")); err != nil {
+		fail(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) reportComment(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	if err := h.svc.ReportComment(r.Context(), uid(r), chi.URLParam(r, "id"), req.Reason); err != nil {
 		fail(w, err)
 		return
 	}

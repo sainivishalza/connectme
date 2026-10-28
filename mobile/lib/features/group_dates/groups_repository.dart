@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/models.dart';
+import '../../core/models/json.dart' show jsonStrings;
 import '../../core/network/api_client.dart';
 import '../../core/providers.dart';
 
@@ -67,8 +68,20 @@ class GroupsRepository {
         'starts_at': startsAt.toUtc().toIso8601String(),
       });
 
+  Future<Logistics> logistics(String dateId) async => Logistics.fromJson(await _api.getMap('/groups/dates/$dateId/logistics'));
+  Future<Logistics> payLogistics(String dateId) async => Logistics.fromJson(await _api.postMap('/groups/dates/$dateId/logistics'));
+
   Future<void> confirmDate(String dateId) => _api.post('/groups/dates/$dateId/confirm');
   Future<void> cancelDate(String dateId) => _api.delete('/groups/dates/$dateId');
+
+  /// Reply ideas for a group chat. [lines] are only what the member chose to
+  /// share: who ("me" or "other") and the text, nothing else.
+  Future<List<String>> replyIdeas(String groupMatchId, List<({bool mine, String text})> lines) async {
+    final m = await _api.postMap('/groups/matches/$groupMatchId/reply-ideas', body: {
+      'lines': [for (final l in lines) {'who': l.mine ? 'me' : 'other', 'text': l.text}],
+    });
+    return jsonStrings(m['replies']);
+  }
 
   Future<Suggestions> suggestions(String groupId) async =>
       Suggestions.fromJson(await _api.postMap('/groups/$groupId/venue'));

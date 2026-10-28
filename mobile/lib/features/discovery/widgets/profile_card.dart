@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models.dart';
@@ -9,7 +10,8 @@ import '../../hotel_mode/moods.dart';
 import '../../chapters/widgets/chapters_section.dart';
 import '../../videos/videos_repository.dart';
 import '../../videos/widgets/video_view.dart';
-import '../../../shared/widgets/avatar.dart';
+import '../../profile/widgets/detail_widgets.dart';
+import 'photo_carousel.dart';
 
 /// A person as the server chose to show them. Anonymous profiles never show a
 /// photo or name; the card says so rather than hiding it, and shows them
@@ -47,6 +49,8 @@ class ProfileCard extends StatelessWidget {
                 children: [
                   Row(children: [
                     Flexible(child: Text(p.title, style: t.textTheme.headlineMedium, overflow: TextOverflow.ellipsis)),
+                    if (p.idVerified) ...[const SizedBox(width: 8), const VerifiedBadge()],
+                    if (p.charmLevel >= 2) ...[const SizedBox(width: 8), CharmBadge(level: p.charmLevel)],
                     if (p.vip) ...[
                       const SizedBox(width: 8),
                       Icon(Icons.workspace_premium, color: t.colorScheme.tertiary, size: 24),
@@ -54,18 +58,24 @@ class ProfileCard extends StatelessWidget {
                   ]),
                   const SizedBox(height: 10),
                   Wrap(spacing: 8, runSpacing: 8, children: [
+                    if (p.quizMatch > 0) QuizMatchBadge(percent: p.quizMatch),
                     if (p.age != null) _Fact(icon: Icons.cake_outlined, text: '${p.age}'),
                     if (p.distance.isNotEmpty) _Fact(icon: Icons.near_me_outlined, text: p.distance),
                     if (p.hotelName.isNotEmpty) _Fact(icon: Icons.hotel_outlined, text: p.hotelName),
                     if (p.travelMood.isNotEmpty) _Fact(icon: Icons.luggage_outlined, text: moodLabel(p.travelMood)),
                     if (p.anonymous)
                       Chip(
-                        label: const Text('Anonymous'),
+                        label: Text(AppLocalizations.of(context)?.sAnonymous ?? 'Anonymous'),
                         avatar: const Icon(Icons.lock_outline, size: 16),
                         visualDensity: VisualDensity.compact,
                       ),
                   ]),
                   if (p.intro.isNotEmpty) ...[const SizedBox(height: 16), Text(p.intro, style: t.textTheme.bodyLarge)],
+                  if (p.details != null && p.details!.facts.isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    DetailChips(key: const Key('detail_chips'), facts: p.details!.facts),
+                  ],
+                  for (final pr in p.prompts) ...[const SizedBox(height: 12), PromptBlock(prompt: pr)],
                   if (p.voiceIntroS > 0 && !p.anonymous) ...[const SizedBox(height: 12), _VoiceIntro(profile: p)],
                   if (p.reelS > 0 && !p.anonymous) _ReelButton(profile: p),
                   if (p.chapters > 0 && !p.anonymous) _ChaptersButton(profile: p),
@@ -104,51 +114,25 @@ class ProfileCard extends StatelessWidget {
 
 /// The top of the card: the photo when the server allows one, otherwise the
 /// light of the person's mode with their avatar or veil.
-class _Stage extends ConsumerWidget {
+class _Stage extends StatelessWidget {
   const _Stage({required this.profile, required this.light});
   final PublicProfile profile;
   final ModeLight light;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final p = profile;
-    final path = p.photos.isEmpty ? null : p.photos.first;
-    final t = Theme.of(context);
-    final photo = path == null
-        ? null
-        : ref.watch(photoBytesProvider(path)).maybeWhen(
-              data: (b) => Image.memory(b, fit: BoxFit.cover, width: double.infinity, height: double.infinity),
-              orElse: () => null,
-            );
+    final hasPhotos = p.photos.isNotEmpty;
     // Short screens get a shorter stage so Like and Pass stay within reach.
     final compact = MediaQuery.sizeOf(context).height < 760;
     return SizedBox(
-      height: photo != null ? (compact ? 200 : 260) : (compact ? 112 : 150),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          if (photo != null)
-            photo
-          else
-            DecoratedBox(decoration: BoxDecoration(gradient: light.gradient)),
-          if (photo == null)
-            Center(
-              child: Avatar(name: p.displayName, anonymous: p.anonymous, radius: compact ? 32 : 42, mode: p.mode),
-            ),
-          if (p.anonymous && photo == null)
-            Positioned(
-              left: 22,
-              right: 22,
-              bottom: 14,
-              child: Text('Face hidden until you both reveal',
-                  textAlign: TextAlign.center, style: t.textTheme.labelMedium?.copyWith(color: light.ink.withValues(alpha: 0.92))),
-            ),
-          Positioned(
-            top: 14,
-            left: 14,
-            child: _ModeBadge(light: light),
-          ),
-        ],
+      height: hasPhotos ? (compact ? 320 : 420) : (compact ? 112 : 150),
+      child: PhotoCarousel(
+        profile: p,
+        light: light,
+        child: Stack(children: [
+          Positioned(top: p.photos.length > 1 ? 26 : 14, left: 14, child: _ModeBadge(light: light)),
+        ]),
       ),
     );
   }

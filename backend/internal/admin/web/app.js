@@ -135,8 +135,8 @@ function renderLogin(error) {
 async function renderShell() {
   clear($app);
   const main = h('main');
-  const tabs = [['queue', 'Queue'], ['reports', 'Reports'], ['users', 'Look up a user'], ['live', 'Live streams']];
-  if (state.role === 'admin') tabs.push(['audit', 'Audit log']);
+  const tabs = [['queue', 'Queue'], ['idchecks', 'ID checks'], ['reports', 'Reports'], ['users', 'Find a member'], ['rooms', 'Reported rooms'], ['appeals', 'Appeals'], ['trends', 'Trends'], ['live', 'Live streams']];
+  if (state.role === 'admin') tabs.push(['sponsors', 'Sponsors'], ['investors', 'Investors'], ['payouts', 'Host payouts'], ['audit', 'Audit log']);
   const nav = h('nav', { role: 'tablist' }, tabs.map(([id, label]) =>
     h('button', { role: 'tab', 'aria-selected': String(state.tab === id), text: label, onclick: () => { state.tab = id; state.selected = null; renderShell(); } })));
   $app.append(
@@ -151,6 +151,13 @@ async function renderShell() {
   else if (state.tab === 'reports') renderReports(body);
   else if (state.tab === 'users') renderUserLookup(body);
   else if (state.tab === 'live') renderLive(body);
+  else if (state.tab === 'trends') renderTrends(body);
+  else if (state.tab === 'rooms') renderRooms(body);
+  else if (state.tab === 'appeals') renderAppeals(body);
+  else if (state.tab === 'idchecks') renderIDChecks(body);
+  else if (state.tab === 'sponsors' && state.role === 'admin') renderSponsors(body);
+  else if (state.tab === 'investors' && state.role === 'admin') renderInvestors(body);
+  else if (state.tab === 'payouts' && state.role === 'admin') renderPayouts(body);
   else renderAudit(body);
 }
 
@@ -166,6 +173,187 @@ async function loadStats() {
   } catch (e) { el.append(h('div', { class: 'error', text: e.message })); }
 }
 
+
+
+// ---- ID checks ---------------------------------------------------------
+// A member photographs an ID document and a selfie holding a paper with a
+// 4-digit code. Compare the faces, the code on the paper and the date of birth
+// on the document with the one the member declared (they must be 18 or over).
+// Images are deleted the moment a decision is made; every view is audited.
+const REJECT_REASONS = [['code_missing', 'The code is missing or wrong'], ['face_mismatch', 'The faces do not match'],
+  ['unreadable', 'A photo is unreadable'], ['underage', 'Under 18'], ['bad_document', 'Not a valid ID document'], ['other', 'Other']];
+
+function renderIDChecks(root) {
+  const panel = h('div', { class: 'panel' });
+  root.append(panel);
+  async function load() {
+    clear(panel);
+    panel.append(h('div', { class: 'row spread' }, h('h2', { text: 'ID checks waiting' }),
+      h('button', { class: 'btn', text: 'Refresh', onclick: load })));
+    let items;
+    try { ({ items } = await api('/idcheck/queue')); }
+    catch (e) { panel.append(h('div', { class: 'error', text: e.message })); return; }
+    if (!items.length) { panel.append(h('div', { class: 'empty', text: 'No ID checks are waiting.' })); return; }
+    for (const it of items) {
+      const shots = h('div', { class: 'row' });
+      const msg = h('div');
+      const reason = h('select', {}, REJECT_REASONS.map(([v, label]) => h('option', { value: v, text: label })));
+      const show = async (which, label) => {
+        try {
+          const blob = await api(`/idcheck/${encodeURIComponent(it.id)}/image/${which}`, { blob: true });
+          const url = URL.createObjectURL(blob);
+          shots.append(h('figure', {}, h('img', { src: url, alt: label, style: 'max-width:320px;max-height:320px' }), h('figcaption', { text: label })));
+        } catch (e) { msg.append(h('div', { class: 'error', text: e.message })); }
+      };
+      const decide = async (action) => {
+        try {
+          await api(`/idcheck/${encodeURIComponent(it.id)}/decision`, { method: 'POST', body: action === 'approve' ? { action } : { action, reason: reason.value } });
+          load(); loadStats();
+        } catch (e) { clear(msg); msg.append(h('div', { class: 'error', text: e.message })); }
+      };
+      panel.append(h('div', { class: 'item' },
+        h('div', { class: 'row spread' }, h('b', { text: it.display_name || 'Member' }), h('span', { class: 'badge', text: `Code on the paper: ${it.code}` })),
+        h('small', { text: `Submitted ${when(it.submitted_at)} · declared birth date ${it.declared_birth_date}` }),
+        h('div', { class: 'row' },
+          h('button', { class: 'btn', text: 'Show ID document', onclick: () => show('id_photo', 'ID document') }),
+          h('button', { class: 'btn', text: 'Show selfie', onclick: () => show('selfie', 'Selfie with code') })),
+        shots, msg,
+        h('div', { class: 'row' },
+          h('button', { class: 'btn primary', text: 'Approve', onclick: () => decide('approve') }),
+          reason, h('button', { class: 'btn danger', text: 'Reject', onclick: () => decide('reject') }))));
+    }
+  }
+  load();
+}
+
+// ---- Investors (admin) -------------------------------------------------
+// Pledges are confirmed only after the money has arrived outside the app.
+// Confirming changes everyone's percentage, so it asks first and is audited.
+// ---- host payouts -------------------------------------------------------
+// Hosts earn coins from live gifts and ask to be paid. The app moves no money:
+// send it yourself, then record the amount, method and transfer reference here.
+// Rejecting a request frees the gifts so the host can ask again.
+function renderPayouts(root) {
+  const panel = h('div', { class: 'panel' });
+  root.append(panel);
+  async function load() {
+    clear(panel);
+    panel.append(h('div', { class: 'row spread' }, h('h2', { text: 'Host payout requests' }),
+      h('button', { class: 'btn', text: 'Refresh', onclick: load })));
+    let list;
+    try { ({ payouts: list } = await api('/payouts/admin/queue')); }
+    catch (e) { panel.append(h('div', { class: 'error', text: e.message })); return; }
+    if (!list.length) { panel.append(h('div', { class: 'empty', text: 'Nothing waiting.' })); return; }
+    for (const p of list) {
+      const amount = h('input', { type: 'number', min: '1', step: '0.01', placeholder: 'Amount sent (USD)', 'aria-label': 'Amount sent in US dollars' });
+      const method = h('select', { 'aria-label': 'Method' }, ['bank_transfer', 'upi', 'paypal', 'other'].map((m) => h('option', { value: m, text: m.replace('_', ' ') })));
+      const ref = h('input', { placeholder: 'Transfer reference', 'aria-label': 'Transfer reference' });
+      const msg = h('div');
+      const pay = async () => {
+        const cents = Math.round(parseFloat(amount.value) * 100);
+        if (!(cents > 0)) { clear(msg); msg.append(h('div', { class: 'error', text: 'Enter the amount you sent.' })); return; }
+        if (!window.confirm('Record a payment of $' + (cents / 100).toFixed(2) + ' to ' + (p.host_name || 'this host') + '? This cannot be undone.')) return;
+        try { await api('/payouts/admin/' + encodeURIComponent(p.id) + '/pay', { method: 'POST', body: { amount_cents: cents, method: method.value, reference: ref.value.trim() } }); load(); }
+        catch (e) { clear(msg); msg.append(h('div', { class: 'error', text: e.message })); }
+      };
+      const reject = async () => {
+        const reason = window.prompt('Why is this request being turned down? The host sees this.');
+        if (!reason) return;
+        try { await api('/payouts/admin/' + encodeURIComponent(p.id) + '/reject', { method: 'POST', body: { reason } }); load(); }
+        catch (e) { clear(msg); msg.append(h('div', { class: 'error', text: e.message })); }
+      };
+      panel.append(h('div', { class: 'item' },
+        h('div', { class: 'row spread' }, h('b', { text: (p.host_name || 'Host') + ': ' + p.coins + ' coins' }), h('span', { class: 'badge', text: p.status })),
+        h('small', { text: 'Profile ' + p.host_ref + ' · asked ' + when(p.requested_at) }),
+        h('div', { class: 'row' }, amount, method, ref),
+        h('div', { class: 'row' }, h('button', { class: 'btn primary', text: 'I sent the money: record it', onclick: pay }),
+          h('button', { class: 'btn', text: 'Reject', onclick: reject })),
+        msg));
+    }
+  }
+  load();
+}
+
+function renderInvestors(root) {
+  const panel = h('div', { class: 'panel' });
+  root.append(panel);
+  async function load() {
+    clear(panel);
+    panel.append(h('div', { class: 'row spread' }, h('h2', { text: 'Investor pledges' }),
+      h('button', { class: 'btn', text: 'Refresh', onclick: load })));
+    let list;
+    try { ({ pledges: list } = await api('/investors/admin/pledges')); }
+    catch (e) { panel.append(h('div', { class: 'error', text: e.message })); return; }
+    if (!list.length) { panel.append(h('div', { class: 'empty', text: 'No pledges yet.' })); return; }
+    for (const p of list) {
+      const decide = (d) => async () => {
+        if (!window.confirm(`${d === 'confirm' ? 'Confirm that' : 'Cancel the pledge of'} $${p.amount_usd} from ${p.name || p.email}${d === 'confirm' ? ' has been received?' : '?'}`)) return;
+        try { await api(`/investors/admin/pledges/${encodeURIComponent(p.id)}/${d}`, { method: 'POST' }); load(); }
+        catch (e) { panel.append(h('div', { class: 'error', text: e.message })); }
+      };
+      panel.append(h('div', { class: 'item' },
+        h('div', { class: 'row spread' }, h('b', { text: `$${p.amount_usd} from ${p.name || 'Member'} (${p.email})` }),
+          h('span', { class: 'badge', text: p.status })),
+        h('small', { text: `${p.reference} · ${when(p.created_at)}` }),
+        p.status === 'pending' ? h('div', { class: 'row' },
+          h('button', { class: 'btn primary', text: 'Money received: confirm', onclick: decide('confirm') }),
+          h('button', { class: 'btn', text: 'Cancel', onclick: decide('cancel') })) : null));
+    }
+  }
+  load();
+}
+
+// ---- Sponsors (admin) --------------------------------------------------
+function renderSponsors(root) {
+  const panel = h('div', { class: 'panel' });
+  root.append(panel);
+  async function load() {
+    clear(panel);
+    panel.append(h('div', { class: 'row spread' }, h('h2', { text: 'Sponsored placements' }),
+      h('button', { class: 'btn', text: 'Refresh', onclick: load })));
+    const f = {
+      advertiser: h('input', { placeholder: 'Advertiser', maxlength: 60 }),
+      headline: h('input', { placeholder: 'Headline', maxlength: 80 }),
+      body: h('input', { placeholder: 'Short text (optional)', maxlength: 200 }),
+      link: h('input', { placeholder: 'https:// link (optional)', maxlength: 300 }),
+      days: h('input', { type: 'number', value: '14', min: '1', max: '365', title: 'Run for this many days' }),
+      lat: h('input', { placeholder: 'Latitude (optional)' }), lng: h('input', { placeholder: 'Longitude' }),
+      radius: h('input', { placeholder: 'Radius km (1-200)', type: 'number' }),
+    };
+    const msg = h('div');
+    const create = async () => {
+      clear(msg);
+      const start = new Date(), end = new Date(start.getTime() + Number(f.days.value || 14) * 86400000);
+      const body = { advertiser: f.advertiser.value.trim(), headline: f.headline.value.trim(), body: f.body.value.trim(),
+        link_url: f.link.value.trim(), starts_at: start.toISOString(), ends_at: end.toISOString() };
+      if (f.lat.value.trim() || f.lng.value.trim() || f.radius.value.trim()) {
+        body.lat = Number(f.lat.value); body.lng = Number(f.lng.value); body.radius_km = Number(f.radius.value);
+      }
+      try { await api('/sponsors/', { method: 'POST', body }); load(); }
+      catch (e) { msg.append(h('div', { class: 'error', text: e.message })); }
+    };
+    panel.append(h('div', { class: 'item' }, h('b', { text: 'New placement' }),
+      h('div', { class: 'row' }, f.advertiser, f.headline), h('div', { class: 'row' }, f.body, f.link),
+      h('div', { class: 'row' }, f.days, f.lat, f.lng, f.radius), msg,
+      h('div', { class: 'row' }, h('button', { class: 'btn primary', text: 'Create', onclick: create }))));
+    let list;
+    try { ({ placements: list } = await api('/sponsors/')); }
+    catch (e) { panel.append(h('div', { class: 'error', text: e.message })); return; }
+    if (!list.length) { panel.append(h('div', { class: 'empty', text: 'No placements yet.' })); return; }
+    for (const p of list) {
+      const toggle = async () => {
+        try { await api(`/sponsors/${encodeURIComponent(p.id)}/${p.active ? 'pause' : 'resume'}`, { method: 'POST' }); load(); }
+        catch (e) { panel.append(h('div', { class: 'error', text: e.message })); }
+      };
+      panel.append(h('div', { class: 'item' },
+        h('div', { class: 'row spread' }, h('b', { text: `${p.advertiser}: ${p.headline}` }),
+          h('span', { class: 'badge', text: p.active ? 'Running' : 'Paused' })),
+        h('small', { text: `${when(p.starts_at)} to ${when(p.ends_at)} · shown ${p.impressions} · clicked ${p.clicks}${p.radius_km ? ` · ${p.radius_km} km radius` : ''}` }),
+        h('div', { class: 'row' }, h('button', { class: 'btn', text: p.active ? 'Pause' : 'Resume', onclick: toggle }))));
+    }
+  }
+  load();
+}
 
 // ---- queue -------------------------------------------------------------
 // One list for everything waiting on a moderator, oldest first: open reports
@@ -285,11 +473,32 @@ function renderReports(root) {
 
 // ---- user lookup -------------------------------------------------------
 function renderUserLookup(root) {
-  const input = h('input', { placeholder: 'Profile code (ref)', style: 'min-width:340px', value: state.userRef || '' });
-  const out = h('div', { class: 'panel', style: 'margin-top:16px' }, h('div', { class: 'empty', text: 'Enter a profile code or open a user from a report.' }));
-  const go = () => { state.userRef = input.value.trim(); if (state.userRef) loadUser(); };
-  root.append(h('div', { class: 'row' }, input, h('button', { class: 'btn primary', text: 'View', onclick: go })), out);
+  const input = h('input', { placeholder: 'Name or profile code', class: 'wide', value: state.userRef || '' });
+  const out = h('div', { class: 'panel gap' }, h('div', { class: 'empty', text: 'Type the start of a name, or a profile code, or open someone from a report.' }));
+  const isRef = (v) => /^[0-9a-fA-F-]{36}$/.test(v);
+  // A profile code opens the member; anything else searches by name. Every
+  // search is written to the audit log by the server.
+  const go = () => {
+    const v = input.value.trim();
+    if (!v) return;
+    if (isRef(v)) { state.userRef = v; loadUser(); } else search(v);
+  };
+  root.append(h('div', { class: 'row' }, input, h('button', { class: 'btn primary', text: 'Search', onclick: go })), out);
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+
+  async function search(q) {
+    clear(out); out.append(h('div', { class: 'empty', text: 'Searching…' }));
+    try {
+      const { members } = await api(`/moderation/members?q=${encodeURIComponent(q)}`);
+      clear(out);
+      if (!members.length) { out.append(h('div', { class: 'empty', text: 'Nobody found. Names are matched from the start.' })); return; }
+      out.append(h('table', {}, h('tr', {}, ['Name', 'Mode', 'Joined', 'Open reports', ''].map((c) => h('th', { text: c }))),
+        members.map((m) => h('tr', {},
+          h('td', { text: m.display_name || '(no name)' }), h('td', { text: m.mode }), h('td', { text: when(m.joined_at) }),
+          h('td', {}, m.open_reports > 0 ? h('span', { class: 'badge auto', text: String(m.open_reports) }) : '0', m.banned ? h('span', { class: 'badge banned', text: 'banned' }) : null),
+          h('td', {}, h('button', { class: 'btn', text: 'Open', onclick: () => { state.userRef = m.ref; input.value = m.ref; loadUser(); } }))))));
+    } catch (e) { clear(out); out.append(h('div', { class: 'error', text: e.message })); }
+  }
 
   async function loadUser() {
     clear(out); out.append(h('div', { class: 'empty', text: 'Loading…' }));
@@ -340,6 +549,127 @@ function renderUserLookup(root) {
     } catch (e) { clear(out); out.append(h('div', { class: 'error', text: e.message })); }
   }
   if (state.userRef) loadUser();
+}
+
+// ---- reported masked rooms and appeals -----------------------------------
+// A masked room is deleted an hour after it ends, so each report keeps the
+// reported line and the room's last lines under their made-up names. Reports
+// about one room are shown together; settle them from the Reports tab.
+function renderRooms(root) {
+  const panel = h('div', { class: 'panel' }, h('div', { class: 'empty', text: 'Loading…' }));
+  root.append(panel);
+  api('/moderation/rooms').then(({ rooms }) => {
+    clear(panel);
+    panel.append(h('h2', { text: 'Masked rooms with open reports' }),
+      h('p', { class: 'note', text: 'Nothing said in a masked room is private from staff. Names are made up for the room.' }));
+    if (!rooms.length) { panel.append(h('div', { class: 'empty', text: 'No reported rooms.' })); return; }
+    for (const r of rooms) {
+      panel.append(h('div', { class: 'item' },
+        h('div', { class: 'row spread' }, h('b', { text: r.reports + ' report' + (r.reports === 1 ? '' : 's') + ' from ' + r.reporters + ' ' + (r.reporters === 1 ? 'person' : 'people') }),
+          h('span', { class: 'badge auto', text: r.reasons.join(', ') })),
+        h('small', { text: 'Latest ' + when(r.last_at) + ' · room ' + r.room_id.slice(0, 8) }),
+        h('pre', { class: 'evidence', text: r.evidence.join('\n') })));
+    }
+  }).catch((e) => { clear(panel); panel.append(h('div', { class: 'error', text: e.message })); });
+}
+
+function renderAppeals(root) {
+  const panel = h('div', { class: 'panel' });
+  root.append(panel);
+  async function load() {
+    clear(panel);
+    panel.append(h('div', { class: 'row spread' }, h('h2', { text: 'Ban appeals' }), h('button', { class: 'btn', text: 'Refresh', onclick: load })));
+    let list;
+    try { ({ appeals: list } = await api('/moderation/appeals')); }
+    catch (e) { panel.append(h('div', { class: 'error', text: e.message })); return; }
+    if (!list.length) { panel.append(h('div', { class: 'empty', text: 'No appeals waiting.' })); return; }
+    for (const a of list) {
+      const note = h('input', { placeholder: 'Reason the member is told (5 to 300 characters)', class: 'wide', 'aria-label': 'Reason' });
+      const msg = h('div');
+      const decide = (d) => async () => {
+        try { await api('/moderation/appeals/' + encodeURIComponent(a.id) + '/decide', { method: 'POST', body: { decision: d, note: note.value.trim() } }); load(); loadStats(); }
+        catch (e) { clear(msg); msg.append(h('div', { class: 'error', text: e.message })); }
+      };
+      panel.append(h('div', { class: 'item' },
+        h('div', { class: 'row spread' }, h('b', { text: a.display_name || '(no name)' }), h('span', { class: 'badge', text: a.reports_about + ' reports against' })),
+        h('small', { text: 'Profile ' + a.user_ref + ' · ' + when(a.created_at) }),
+        h('p', { text: a.message }),
+        note,
+        h('div', { class: 'row' }, h('button', { class: 'btn primary', text: 'Lift the ban', onclick: decide('lift') }),
+          h('button', { class: 'btn', text: 'Keep the ban', onclick: decide('uphold') })),
+        msg));
+    }
+  }
+  load();
+}
+
+// ---- trends --------------------------------------------------------------
+// Where new members drop out, what happens each day and what people report.
+// Aggregates only. Drawn as SVG with attributes (the CSP forbids inline style).
+const SVG = 'http://www.w3.org/2000/svg';
+function svg(tag, attrs = {}, ...kids) {
+  const el = document.createElementNS(SVG, tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v));
+  for (const k of kids.flat()) if (k) el.append(k);
+  return el;
+}
+const txt = (s) => document.createTextNode(String(s));
+const FUNNEL_STEPS = [['registered', 'Signed up'], ['verified', 'Confirmed their email'], ['onboarded', 'Finished the welcome'],
+  ['with_photo', 'Added a photo'], ['swiped', 'Started swiping'], ['matched', 'Got a match']];
+const SERIES = [['signups', 'Sign-ups'], ['swipes', 'Swipes'], ['matches', 'Matches'], ['reports', 'Reports'], ['live_rooms', 'Live rooms']];
+
+function funnelChart(f) {
+  const max = Math.max(1, f.registered), rowH = 34, w = 640, labelW = 190, barMax = w - labelW - 190;
+  const rows = FUNNEL_STEPS.map(([key, label], i) => {
+    const v = f[key], prev = i === 0 ? v : f[FUNNEL_STEPS[i - 1][0]];
+    const share = i === 0 ? '' : prev > 0 ? Math.round((v / prev) * 100) + '% of the step before' : '';
+    const y = i * rowH, bw = Math.max(2, (v / max) * barMax);
+    return svg('g', {},
+      svg('text', { x: 0, y: y + 21, class: 'chart-label' }, txt(label)),
+      svg('rect', { x: labelW, y: y + 6, width: bw, height: 20, rx: 4, class: 'chart-bar' }),
+      svg('text', { x: labelW + bw + 8, y: y + 21, class: 'chart-value' }, txt(v + (share ? '  ·  ' + share : ''))));
+  });
+  return svg('svg', { viewBox: '0 0 ' + w + ' ' + FUNNEL_STEPS.length * rowH, width: '100%', role: 'img', 'aria-label': 'Sign-up funnel' }, rows);
+}
+
+function dailyChart(daily, key) {
+  const w = 640, hgt = 180, pad = 24, n = daily.length;
+  const max = Math.max(1, ...daily.map((d) => d[key]));
+  const bw = (w - pad) / n;
+  const bars = daily.map((d, i) => {
+    const bh = (d[key] / max) * (hgt - pad - 8);
+    return svg('rect', { x: pad + i * bw + 1, y: hgt - pad - bh, width: Math.max(1, bw - 2), height: bh, rx: 2, class: 'chart-bar' },
+      svg('title', {}, txt(d.day + ': ' + d[key])));
+  });
+  return svg('svg', { viewBox: '0 0 ' + w + ' ' + hgt, width: '100%', role: 'img', 'aria-label': 'Daily activity' },
+    svg('line', { x1: pad, x2: w, y1: hgt - pad, y2: hgt - pad, class: 'chart-axis' }), bars,
+    svg('text', { x: 0, y: 12, class: 'chart-label' }, txt(max)),
+    svg('text', { x: pad, y: hgt - 6, class: 'chart-label' }, txt(daily[0].day)),
+    svg('text', { x: w, y: hgt - 6, 'text-anchor': 'end', class: 'chart-label' }, txt(daily[n - 1].day)));
+}
+
+function renderTrends(root) {
+  const panel = h('div', { class: 'panel' }, h('div', { class: 'empty', text: 'Loading…' }));
+  root.append(panel);
+  const days = state.trendDays || 30, metric = state.trendMetric || 'signups';
+  api('/moderation/analytics?days=' + days).then((a) => {
+    clear(panel);
+    const pick = (label, current, on) => h('button', { class: 'btn' + (current ? ' primary' : ''), text: label, onclick: on });
+    const reasons = a.report_reasons.length
+      ? h('table', {}, h('tr', {}, ['Reason', 'Reports'].map((c) => h('th', { text: c }))), a.report_reasons.map((r) => h('tr', {}, h('td', { text: r.reason }), h('td', { text: String(r.count) }))))
+      : h('div', { class: 'note', text: 'No member reports in this period.' });
+    put(panel,
+      h('div', { class: 'row spread' }, h('h2', { text: 'Last ' + a.funnel.days + ' days' }),
+        h('div', { class: 'row' }, [7, 30, 90].map((d) => pick(d + ' days', d === days, () => { state.trendDays = d; renderShell(); })))),
+      h('h3', { text: 'Where new members get to' }),
+      h('p', { class: 'note', text: 'Of the ' + a.funnel.registered + ' people who signed up in this period. Each step counts only people who also did the steps before it.' }),
+      funnelChart(a.funnel),
+      h('h3', { text: 'Each day' }),
+      h('div', { class: 'row' }, SERIES.map(([k, label]) => pick(label, k === metric, () => { state.trendMetric = k; renderShell(); }))),
+      dailyChart(a.daily, metric),
+      h('h3', { text: 'What people report' }), reasons,
+      h('p', { class: 'note', text: 'Totals only. Nothing here identifies a member.' }));
+  }).catch((e) => { clear(panel); panel.append(h('div', { class: 'error', text: e.message })); });
 }
 
 // ---- audit log ----------------------------------------------------------

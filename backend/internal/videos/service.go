@@ -30,6 +30,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"connectme/internal/push"
+	"connectme/internal/sounds"
 	"connectme/internal/users"
 
 	"github.com/google/uuid"
@@ -56,13 +58,14 @@ type TextVetter interface {
 }
 
 type Service struct {
-	db      *pgxpool.Pool
-	media   users.MediaStore
-	users   *users.Service
-	vetter  TextVetter
-	scanner Scanner
-	secret  []byte
-	now     func() time.Time
+	db       *pgxpool.Pool
+	media    users.MediaStore
+	users    *users.Service
+	vetter   TextVetter
+	scanner  Scanner
+	notifier push.Notifier
+	secret   []byte
+	now      func() time.Time
 }
 
 // SetScanner replaces the abuse scanner (the default is the allow-all stub).
@@ -87,25 +90,32 @@ type Video struct {
 	Likes     int       `json:"likes"`
 	Liked     bool      `json:"liked"`
 	Mine      bool      `json:"mine"`
-	Status    string    `json:"status"`           // live | held (waiting for a moderator; only the owner sees it)
-	Author    *Author   `json:"author,omitempty"` // shorts only: their authors are Open-mode members
+	Comments  int       `json:"comments"`
+	Sound     string    `json:"sound,omitempty"` // id of the background loop, if any
+	SoundName string    `json:"sound_name,omitempty"`
+	Following bool      `json:"following,omitempty"` // the viewer follows the author
+	Status    string    `json:"status"`              // live | held (waiting for a moderator; only the owner sees it)
+	Author    *Author   `json:"author,omitempty"`    // shorts only: their authors are Open-mode members
 }
 
 const videoCols = `
 	v.id::text, v.kind, v.caption, v.seconds, v.created_at,
 	(SELECT COUNT(*) FROM video_likes l WHERE l.video_id = v.id),
 	EXISTS (SELECT 1 FROM video_likes l WHERE l.video_id = v.id AND l.user_id = $1::uuid),
-	v.owner_id = $1::uuid, v.status, p.public_ref::text, p.display_name`
+	v.owner_id = $1::uuid, v.status, p.public_ref::text, p.display_name,
+	(SELECT COUNT(*) FROM video_comments vc WHERE vc.video_id = v.id), v.sound_id,
+	EXISTS (SELECT 1 FROM follows f WHERE f.follower_id = $1::uuid AND f.followee_id = v.owner_id)`
 
 func scanVideo(row pgx.Row) (*Video, error) {
 	var v Video
 	var ref, name string
-	if err := row.Scan(&v.ID, &v.Kind, &v.Caption, &v.Seconds, &v.CreatedAt, &v.Likes, &v.Liked, &v.Mine, &v.Status, &ref, &name); err != nil {
+	if err := row.Scan(&v.ID, &v.Kind, &v.Caption, &v.Seconds, &v.CreatedAt, &v.Likes, &v.Liked, &v.Mine, &v.Status, &ref, &name, &v.Comments, &v.Sound, &v.Following); err != nil {
 		return nil, err
 	}
 	if v.Kind == "short" {
 		v.Author = &Author{Ref: ref, Name: name}
 	}
+	v.SoundName = sounds.Name(v.Sound)
 	return &v, nil
 }
 
@@ -118,6 +128,15 @@ func parse(id string) error {
 
 // Upload stores a clip. For a reel it replaces the previous one.
 func (s *Service) Upload(ctx context.Context, userID, kind, caption string, data []byte) (*Video, error) {
+	return s.UploadWithSound(ctx, userID, kind, caption, "", data)
+}
+
+// UploadWithSound is Upload with an optional sound from the built-in library
+// (shorts only).
+func (s *Service) UploadWithSound(ctx context.Context, userID, kind, caption, sound string, data []byte) (*Video, error) {
+	if sound != "" && (kind != "short" || !sounds.Exists(sound)) {
+		return nil, users.ValidationError{Msg: "unknown sound"}
+	}
 	if kind != "short" && kind != "reel" {
 		return nil, users.ValidationError{Msg: "kind must be short or reel"}
 	}
@@ -205,9 +224,9 @@ func (s *Service) Upload(ctx context.Context, userID, kind, caption string, data
 	}
 	var id string
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO videos (owner_id, kind, blob_id, mime, seconds, bytes, caption, status, scan_note, scanner)
-		VALUES ($1::uuid,$2,$3::uuid,$4,$5,$6,$7,$8,$9,$10) RETURNING id::text`,
-		userID, kind, blob, mime, seconds, len(data), caption, status, note, s.scanner.Name()).Scan(&id); err != nil {
+		INSERT INTO videos (owner_id, kind, blob_id, mime, seconds, bytes, caption, status, scan_note, scanner, sound_id)
+		VALUES ($1::uuid,$2,$3::uuid,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id::text`,
+		userID, kind, blob, mime, seconds, len(data), caption, status, note, s.scanner.Name(), sound).Scan(&id); err != nil {
 		_ = s.media.Delete(ctx, blob)
 		return nil, err
 	}
@@ -226,7 +245,7 @@ func (s *Service) get(ctx context.Context, viewer, id string) (*Video, error) {
 }
 
 // Feed returns recent shorts from Open-mode members the viewer may see.
-func (s *Service) Feed(ctx context.Context, viewer string, before time.Time) ([]Video, error) {
+func (s *Service) Feed(ctx context.Context, viewer string, before time.Time, followingOnly bool) ([]Video, error) {
 	if before.IsZero() {
 		before = s.now().Add(time.Minute)
 	}
@@ -235,9 +254,10 @@ func (s *Service) Feed(ctx context.Context, viewer string, before time.Time) ([]
 		  JOIN profiles p ON p.user_id = v.owner_id AND p.mode = 'open'
 		  JOIN users u ON u.id = v.owner_id AND u.is_verified AND NOT u.is_banned
 		 WHERE v.kind = 'short' AND v.status = 'live' AND v.created_at < $2
+		   AND (NOT $4::boolean OR EXISTS (SELECT 1 FROM follows f WHERE f.follower_id = $1::uuid AND f.followee_id = v.owner_id))
 		   AND `+users.NotBlockedSQL("v.owner_id", "$1::uuid")+`
 		   AND EXISTS (SELECT 1 FROM users me WHERE me.id = $1::uuid AND me.is_verified AND NOT me.is_banned)
-		 ORDER BY v.created_at DESC LIMIT $3`, viewer, before, pageSize)
+		 ORDER BY v.created_at DESC LIMIT $3`, viewer, before, pageSize, followingOnly)
 	if err != nil {
 		return nil, err
 	}

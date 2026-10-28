@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -122,7 +124,7 @@ class _ForgotScreenState extends ConsumerState<ForgotScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('Forgot password'), leading: BackButton(onPressed: () => context.go('/login'))),
+        appBar: AppBar(title: Text(AppLocalizations.of(context)?.forgotTitle ?? 'Forgot password'), leading: BackButton(onPressed: () => context.go('/login'))),
         body: Padding(
           padding: const EdgeInsets.all(24),
           child: Form(
@@ -133,11 +135,11 @@ class _ForgotScreenState extends ConsumerState<ForgotScreen> {
                 TextFormField(
                   controller: _email,
                   keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(labelText: 'Email'),
+                  decoration: InputDecoration(labelText: AppLocalizations.of(context)?.loginEmail ?? 'Email'),
                   validator: Validators.email,
                 ),
                 const SizedBox(height: 24),
-                AppButton(label: 'Send reset email', busy: _busy, onPressed: _submit),
+                AppButton(label: AppLocalizations.of(context)?.forgotSend ?? 'Send reset email', busy: _busy, onPressed: _submit),
               ],
             ),
           ),

@@ -33,27 +33,33 @@ func (e ValidationError) Error() string { return e.Msg }
 type PhotoMeta struct {
 	ID        string    `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
+	Caption   string    `json:"caption,omitempty"`
 }
 
 // OwnProfile is what a user sees about themselves. It never contains
 // coordinates, only whether a location is set.
 type OwnProfile struct {
-	Ref           string      `json:"ref"`
-	Mode          Mode        `json:"mode"`
-	DisplayName   string      `json:"display_name"`
-	Bio           string      `json:"bio"`
-	Intro         string      `json:"intro"`
-	Age           int         `json:"age"`
-	Gender        string      `json:"gender,omitempty"`
-	LookingFor    string      `json:"looking_for,omitempty"`
-	Mood          string      `json:"mood,omitempty"`
-	Tags          []string    `json:"tags"`
-	Photos        []PhotoMeta `json:"photos"`
-	HasLocation   bool        `json:"has_location"`
-	Invisible     bool        `json:"invisible"`
-	EmailVerified bool        `json:"email_verified"`
-	IDVerified    bool        `json:"id_verified"`
-	VoiceIntroS   int         `json:"voice_intro_s"`
+	Ref           string         `json:"ref"`
+	Mode          Mode           `json:"mode"`
+	DisplayName   string         `json:"display_name"`
+	Bio           string         `json:"bio"`
+	Intro         string         `json:"intro"`
+	Age           int            `json:"age"`
+	Gender        string         `json:"gender,omitempty"`
+	LookingFor    string         `json:"looking_for,omitempty"`
+	Mood          string         `json:"mood,omitempty"`
+	Tags          []string       `json:"tags"`
+	Photos        []PhotoMeta    `json:"photos"`
+	HasLocation   bool           `json:"has_location"`
+	Invisible     bool           `json:"invisible"`
+	EmailVerified bool           `json:"email_verified"`
+	IDVerified    bool           `json:"id_verified"`
+	VoiceIntroS   int            `json:"voice_intro_s"`
+	Details       Details        `json:"details"`
+	Prompts       []PromptAnswer `json:"prompts"`
+	Completeness  Completeness   `json:"completeness"`
+	// Onboarded is false until the member finishes or skips the welcome steps.
+	Onboarded bool `json:"onboarded"`
 }
 
 // UpdateProfileRequest is a partial update: nil fields are left unchanged.
@@ -86,4 +92,9 @@ type NearbyFilter struct {
 	Mode     Mode
 	Limit    int
 	Offset   int
+
+	// Lifestyle filters. They only use answers that anonymous profiles show,
+	// so they cannot be used to single anyone out. Empty = no filter.
+	Goal, Kids, Drinking, Smoking, Exercise, Language string
+	VerifiedOnly                                      bool
 }

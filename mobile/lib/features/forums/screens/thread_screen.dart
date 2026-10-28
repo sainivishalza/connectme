@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../shared/widgets/app_snack.dart';
@@ -83,7 +84,7 @@ class _ThreadScreenState extends ConsumerState<ThreadScreen> {
 
   Future<void> _report(String kind, Object id) async {
     final reason = await showModalBottomSheet<String>(
-      context: context,
+      context: context, useRootNavigator: true,
       builder: (c) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           const ListTile(title: Text('Report this post')),
@@ -125,9 +126,9 @@ class _ThreadScreenState extends ConsumerState<ThreadScreen> {
         Row(children: [
           const Spacer(),
           if (th.mine)
-            TextButton.icon(key: const Key('delete_thread'), onPressed: _deleteThread, icon: const Icon(Icons.delete_outline), label: const Text('Delete'))
+            TextButton.icon(key: const Key('delete_thread'), onPressed: _deleteThread, icon: const Icon(Icons.delete_outline), label: Text(AppLocalizations.of(context)?.sDelete ?? 'Delete'))
           else
-            TextButton.icon(key: const Key('report_thread'), onPressed: () => _report('threads', th.id), icon: const Icon(Icons.flag_outlined), label: const Text('Report')),
+            TextButton.icon(key: const Key('report_thread'), onPressed: () => _report('threads', th.id), icon: const Icon(Icons.flag_outlined), label: Text(AppLocalizations.of(context)?.sReport ?? 'Report')),
         ]),
         const Divider(),
         Text('${_replies.length} ${_replies.length == 1 ? 'reply' : 'replies'}', style: t.textTheme.titleMedium),
@@ -154,7 +155,7 @@ class _ThreadScreenState extends ConsumerState<ThreadScreen> {
       ]);
     }
     return Scaffold(
-      appBar: AppBar(title: const Text('Thread')),
+      appBar: AppBar(title: Text(AppLocalizations.of(context)?.sThread ?? 'Thread')),
       body: body,
       bottomNavigationBar: th == null
           ? null

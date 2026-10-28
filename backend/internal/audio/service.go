@@ -65,6 +65,7 @@ type Room struct {
 	ID        string    `json:"id"`
 	Title     string    `json:"title"`
 	Anonymous bool      `json:"anonymous"`
+	Topic     string    `json:"topic"`
 	Speakers  int       `json:"speakers"`
 	Listeners int       `json:"listeners"`
 	StartedAt time.Time `json:"started_at"`
@@ -170,6 +171,29 @@ func label(p profile, anonymous bool) string {
 
 // Start opens a room; the caller becomes its host.
 func (s *Service) Start(ctx context.Context, userID, title string, anonymous bool) (*Room, *JoinInfo, error) {
+	return s.StartWithTopic(ctx, userID, title, "open", anonymous)
+}
+
+// Topics are the subjects a voice room can be filed under.
+var Topics = []string{"open", "love", "stories", "music", "advice", "nightowls", "confess"}
+
+func validTopic(t string) bool {
+	for _, x := range Topics {
+		if x == t {
+			return true
+		}
+	}
+	return false
+}
+
+// StartWithTopic opens a room under a topic; the caller becomes its host.
+func (s *Service) StartWithTopic(ctx context.Context, userID, title, topic string, anonymous bool) (*Room, *JoinInfo, error) {
+	if topic == "" {
+		topic = "open"
+	}
+	if !validTopic(topic) {
+		return nil, nil, users.ValidationError{Msg: "unknown topic"}
+	}
 	title = strings.TrimSpace(title)
 	if n := utf8.RuneCountInString(title); n < 3 || n > 80 {
 		return nil, nil, users.ValidationError{Msg: "title must be 3-80 characters"}
@@ -199,10 +223,10 @@ func (s *Service) Start(ctx context.Context, userID, title string, anonymous boo
 	defer tx.Rollback(ctx) //nolint:errcheck
 	var rm Room
 	err = tx.QueryRow(ctx, `
-		INSERT INTO audio_rooms (host_id, title, anonymous) VALUES ($1,$2,$3)
+		INSERT INTO audio_rooms (host_id, title, anonymous, topic) VALUES ($1,$2,$3,$4)
 		ON CONFLICT (host_id) WHERE status='live' DO NOTHING
-		RETURNING id::text, title, anonymous, created_at`, userID, title, anonymous).
-		Scan(&rm.ID, &rm.Title, &rm.Anonymous, &rm.StartedAt)
+		RETURNING id::text, title, anonymous, created_at, topic`, userID, title, anonymous, topic).
+		Scan(&rm.ID, &rm.Title, &rm.Anonymous, &rm.StartedAt, &rm.Topic)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil, users.ValidationError{Msg: "you already host a room; end it first"}
 	}
@@ -228,21 +252,29 @@ func (s *Service) Start(ctx context.Context, userID, title string, anonymous boo
 
 // List returns live rooms the caller may enter.
 func (s *Service) List(ctx context.Context, userID string) ([]Room, error) {
+	return s.ListTopic(ctx, userID, "")
+}
+
+// ListTopic is List narrowed to one topic ("" = all).
+func (s *Service) ListTopic(ctx context.Context, userID, topic string) ([]Room, error) {
+	if topic != "" && !validTopic(topic) {
+		return nil, users.ValidationError{Msg: "unknown topic"}
+	}
 	if _, err := s.who(ctx, userID); err != nil {
 		return nil, err
 	}
 	s.sweep(ctx)
 	rows, err := s.db.Query(ctx, `
-		SELECT r.id::text, r.title, r.anonymous, r.created_at, r.host_id=$1,
+		SELECT r.id::text, r.title, r.anonymous, r.created_at, r.host_id=$1, r.topic,
 		       COUNT(m.id) FILTER (WHERE m.role IN ('host','speaker')),
 		       COUNT(m.id) FILTER (WHERE m.role='listener')
 		  FROM audio_rooms r
 		  JOIN users u ON u.id=r.host_id AND NOT u.is_banned
 		  LEFT JOIN audio_members m ON m.room_id=r.id AND m.left_at IS NULL
-		 WHERE r.status='live'
+		 WHERE r.status='live' AND ($2::text = '' OR r.topic = $2)
 		   AND NOT EXISTS (SELECT 1 FROM blocks b WHERE
 		        (b.blocker_id=$1 AND b.blocked_id=r.host_id) OR (b.blocker_id=r.host_id AND b.blocked_id=$1))
-		 GROUP BY r.id ORDER BY r.created_at DESC LIMIT 50`, userID)
+		 GROUP BY r.id ORDER BY r.created_at DESC LIMIT 50`, userID, topic)
 	if err != nil {
 		return nil, err
 	}
@@ -250,7 +282,7 @@ func (s *Service) List(ctx context.Context, userID string) ([]Room, error) {
 	out := []Room{}
 	for rows.Next() {
 		var r Room
-		if err := rows.Scan(&r.ID, &r.Title, &r.Anonymous, &r.StartedAt, &r.Mine, &r.Speakers, &r.Listeners); err != nil {
+		if err := rows.Scan(&r.ID, &r.Title, &r.Anonymous, &r.StartedAt, &r.Mine, &r.Topic, &r.Speakers, &r.Listeners); err != nil {
 			return nil, err
 		}
 		out = append(out, r)
@@ -330,8 +362,8 @@ func (s *Service) State(ctx context.Context, userID, roomID string) (*Room, []Me
 	err := s.db.QueryRow(ctx, `
 		UPDATE audio_members m SET last_seen=NOW() FROM audio_rooms r
 		 WHERE m.room_id=r.id AND r.id=$1::uuid AND m.user_id=$2 AND m.left_at IS NULL AND NOT m.kicked
-		RETURNING m.id::text, m.role, r.title, r.anonymous, r.status, r.created_at, r.host_id::text`, roomID, userID).
-		Scan(&me.ID, &me.Role, &rm.Title, &rm.Anonymous, &status, &rm.StartedAt, &host)
+		RETURNING m.id::text, m.role, r.title, r.anonymous, r.status, r.created_at, r.host_id::text, r.topic`, roomID, userID).
+		Scan(&me.ID, &me.Role, &rm.Title, &rm.Anonymous, &status, &rm.StartedAt, &host, &rm.Topic)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil, nil, ErrNotFound
 	}

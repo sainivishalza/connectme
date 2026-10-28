@@ -113,7 +113,7 @@ def test_score_endpoint():
     j = r.json()
     assert 0 <= j["score"] <= 100
     assert j["reasons"] and j["reasons"][0]["code"] == "shared_interests"
-    assert set(j["components"]) == {"interests", "age", "schedule", "conversation"}
+    assert set(j["components"]) == {"interests", "age", "lifestyle", "schedule", "conversation"}
 
 
 def test_inputs_are_validated_and_bounded():

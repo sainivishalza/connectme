@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
@@ -123,7 +124,7 @@ class _AudioRoomScreenState extends ConsumerState<AudioRoomScreen> {
         title: const Text('End this room for everyone?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Keep it open')),
-          FilledButton(key: const Key('confirm_end_audio'), onPressed: () => Navigator.pop(c, true), child: const Text('End room')),
+          FilledButton(key: const Key('confirm_end_audio'), onPressed: () => Navigator.pop(c, true), child: Text(AppLocalizations.of(context)?.sEndRoom ?? 'End room')),
         ],
       ),
     );
@@ -152,7 +153,7 @@ class _AudioRoomScreenState extends ConsumerState<AudioRoomScreen> {
 
   Future<void> _manage(AudioMember m) async {
     final action = await showModalBottomSheet<String>(
-      context: context,
+      context: context, useRootNavigator: true,
       builder: (c) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           ListTile(title: Text(m.label, style: Theme.of(c).textTheme.titleMedium)),
@@ -205,7 +206,7 @@ class _AudioRoomScreenState extends ConsumerState<AudioRoomScreen> {
         icon: Icons.mic_off_outlined,
         title: 'This room has ended',
         message: 'Thanks for listening.',
-        action: FilledButton(onPressed: () => Navigator.of(context).maybePop(), child: const Text('Back to rooms')),
+        action: FilledButton(onPressed: () => Navigator.of(context).maybePop(), child: Text(AppLocalizations.of(context)?.sBackToRooms ?? 'Back to rooms')),
       );
     } else if (s == null) {
       body = _error != null ? ErrorView(error: _error!, onRetry: () => _enter()) : const Loader();

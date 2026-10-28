@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models.dart';
@@ -21,7 +22,7 @@ class GroupDatesScreen extends ConsumerWidget {
         key: const Key('propose_date'),
         onPressed: () => _propose(context, ref),
         icon: const Icon(Icons.event),
-        label: const Text('Propose'),
+        label: Text(AppLocalizations.of(context)?.sPropose ?? 'Propose'),
       ),
       body: AsyncListView<DateView>(
         value: dates,
@@ -46,14 +47,54 @@ class GroupDatesScreen extends ConsumerWidget {
                           if (ok) ref.invalidate(groupDatesProvider(matchId));
                         },
                         style: FilledButton.styleFrom(minimumSize: const Size(80, 40)),
-                        child: const Text('Confirm'),
+                        child: Text(AppLocalizations.of(context)?.sConfirm ?? 'Confirm'),
                       )),
+            onTap: d.status == 'cancelled' ? null : () => _logistics(c, ref, d),
             onLongPress: () async {
               final ok = await guarded(c, () => ref.read(groupsRepositoryProvider).cancelDate(d.id));
               if (ok) ref.invalidate(groupDatesProvider(matchId));
             },
           ),
         ),
+      ),
+    );
+  }
+
+  Future<void> _logistics(BuildContext context, WidgetRef ref, DateView d) async {
+    final repo = ref.read(groupsRepositoryProvider);
+    Logistics? l;
+    if (!await guarded(context, () async => l = await repo.logistics(d.id)) || l == null || !context.mounted) return;
+    if (!l!.paid) {
+      final pay = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: const Text('Plan the day'),
+          content: Text('Venue ideas, icebreakers and a short plan for ${d.venue}, ready for both groups. ${l!.priceCoins} coins, once for you.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(c, false), child: Text(AppLocalizations.of(context)?.sNotNow ?? 'Not now')),
+            FilledButton(key: const Key('pay_logistics'), onPressed: () => Navigator.pop(c, true), child: Text('Pay ${l!.priceCoins} coins')),
+          ],
+        ),
+      );
+      if (pay != true || !context.mounted) return;
+      if (!await guarded(context, () async => l = await repo.payLogistics(d.id)) || l == null || !context.mounted) return;
+    }
+    final plan = l!.plan;
+    if (plan == null) return;
+    await showModalBottomSheet<void>(
+      context: context, useRootNavigator: true,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (c) => SafeArea(
+        child: ListView(shrinkWrap: true, padding: const EdgeInsets.fromLTRB(20, 0, 20, 20), children: [
+          Text('Plan for ${d.venue}', style: Theme.of(c).textTheme.titleLarge),
+          for (final part in [('Plan', plan.plan), ('Venue ideas', plan.venues), ('Icebreakers', plan.icebreakers)])
+            if (part.$2.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Text(part.$1, style: Theme.of(c).textTheme.titleSmall),
+              for (final line in part.$2) Padding(padding: const EdgeInsets.only(top: 6), child: Text(line)),
+            ],
+        ]),
       ),
     );
   }
@@ -66,7 +107,7 @@ class GroupDatesScreen extends ConsumerWidget {
       context: context,
       builder: (c) => StatefulBuilder(
         builder: (c, set) => AlertDialog(
-          title: const Text('Propose a date'),
+          title: Text(AppLocalizations.of(context)?.sProposeADate ?? 'Propose a date'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -87,8 +128,8 @@ class GroupDatesScreen extends ConsumerWidget {
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Propose')),
+            TextButton(onPressed: () => Navigator.pop(c, false), child: Text(AppLocalizations.of(context)?.sCancel ?? 'Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(AppLocalizations.of(context)?.sPropose ?? 'Propose')),
           ],
         ),
       ),

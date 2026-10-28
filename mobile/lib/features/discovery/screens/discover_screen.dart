@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/models.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../core/network/api_client.dart';
 import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/app_snack.dart';
@@ -10,8 +11,13 @@ import '../../../shared/widgets/states.dart';
 import '../../payments/payments_repository.dart';
 import '../../profile/profile_repository.dart';
 import '../discovery_repository.dart';
+import '../widgets/deck_actions.dart';
+import '../widgets/deck_card.dart';
 import '../widgets/filter_sheet.dart';
+import '../widgets/match_overlay.dart';
 import '../widgets/profile_card.dart';
+import '../widgets/profile_sheet.dart';
+import '../widgets/swipe_stack.dart';
 
 class DiscoverScreen extends ConsumerWidget {
   const DiscoverScreen({super.key});
@@ -19,10 +25,10 @@ class DiscoverScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Discover'),
+          title: Text(AppLocalizations.of(context)?.discoverTitle ?? 'Discover'),
           actions: [
             IconButton(
               key: const Key('open_explore'),
@@ -32,9 +38,13 @@ class DiscoverScreen extends ConsumerWidget {
             ),
             IconButton(
               tooltip: 'Filters',
-              icon: const Icon(Icons.tune),
+              icon: Badge(
+                isLabelVisible: ref.watch(nearbyFilterProvider).activeCount > 0,
+                label: Text('${ref.watch(nearbyFilterProvider).activeCount}'),
+                child: const Icon(Icons.tune),
+              ),
               onPressed: () => showModalBottomSheet<void>(
-                context: context,
+                context: context, useRootNavigator: true,
                 isScrollControlled: true,
                 showDragHandle: true,
                 builder: (_) => const FilterSheet(),
@@ -46,9 +56,14 @@ class DiscoverScreen extends ConsumerWidget {
               onPressed: () => _boost(context, ref),
             ),
           ],
-          bottom: const TabBar(tabs: [Tab(text: 'Swipe'), Tab(text: 'Nearby'), Tab(text: 'Likes you')]),
+          bottom: TabBar(isScrollable: true, tabAlignment: TabAlignment.start, tabs: [
+            Tab(text: AppLocalizations.of(context)?.tabSwipe ?? 'Swipe'),
+            Tab(text: AppLocalizations.of(context)?.tabTopPicks ?? 'Top picks'),
+            Tab(text: AppLocalizations.of(context)?.tabNearby ?? 'Nearby'),
+            Tab(text: AppLocalizations.of(context)?.tabLikesYou ?? 'Likes you'),
+          ]),
         ),
-        body: const TabBarView(children: [SwipeDeck(), NearbyList(), LikesYouList()]),
+        body: const TabBarView(children: [SwipeDeck(), TopPicksList(), NearbyList(), LikesYouList()]),
       ),
     );
   }
@@ -103,17 +118,49 @@ class SwipeDeck extends ConsumerStatefulWidget {
 
 class _SwipeDeckState extends ConsumerState<SwipeDeck> {
   final Set<String> _done = {};
-  bool _busy = false;
+  final List<PublicProfile> _passed = []; // most recent last, for rewind
+  final _controller = SwipeStackController();
+  String _pendingNote = ''; // sent with the next like, then cleared
 
-  Future<void> _act(PublicProfile p, String action) async {
-    if (_busy) return;
-    setState(() => _busy = true);
+  /// Sends the swipe. Returns true if the card should leave the deck.
+  Future<bool> _send(PublicProfile p, String action) async {
     final repo = ref.read(discoveryRepositoryProvider);
     try {
-      final r = action == 'superlike' ? await repo.superLike(p.ref) : await repo.swipe(p.ref, action);
+      final note = action == 'pass' ? '' : _pendingNote;
+      _pendingNote = '';
+      final r = action == 'superlike' ? await repo.superLike(p.ref, comment: note) : await repo.swipe(p.ref, action, comment: note);
+      if (!mounted) return true;
+      setState(() {
+        _done.add(p.ref);
+        if (action == 'pass') {
+          _passed.add(p);
+          if (_passed.length > 10) _passed.removeAt(0);
+        } else {
+          _passed.clear(); // rewind only undoes a pass that nothing has followed
+        }
+      });
+      if (r.matched) _showMatch(r.matchId, p);
+      return true;
+    } on ApiException catch (e) {
+      if (!mounted) return false;
+      if (e.isPaymentRequired) {
+        _offerUpgrade(e.message);
+      } else {
+        showMessage(context, e.message);
+      }
+      return false;
+    }
+  }
+
+  Future<void> _rewind() async {
+    if (_passed.isEmpty) {
+      showMessage(context, 'Nothing to rewind');
+      return;
+    }
+    try {
+      await ref.read(discoveryRepositoryProvider).rewind();
       if (!mounted) return;
-      setState(() => _done.add(p.ref));
-      if (r.matched) _showMatch(r.matchId);
+      setState(() => _done.remove(_passed.removeLast().ref));
     } on ApiException catch (e) {
       if (!mounted) return;
       if (e.isPaymentRequired) {
@@ -121,29 +168,16 @@ class _SwipeDeckState extends ConsumerState<SwipeDeck> {
       } else {
         showMessage(context, e.message);
       }
-    } finally {
-      if (mounted) setState(() => _busy = false);
     }
   }
 
-  void _showMatch(String? matchId) {
-    showDialog<void>(
-      context: context,
-      builder: (c) => AlertDialog(
-        icon: const Icon(Icons.favorite, size: 40),
-        title: const Text("It's a match!"),
-        content: const Text('Say hello. You can reveal yourselves to each other whenever you both want.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Keep swiping')),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(c);
-              if (matchId != null) context.go('/chats/$matchId');
-            },
-            child: const Text('Say hi'),
-          ),
-        ],
-      ),
+  void _showMatch(String? matchId, PublicProfile p) {
+    showMatchOverlay(
+      context,
+      profile: p,
+      onSayHi: () {
+        if (matchId != null) context.go('/chats/$matchId');
+      },
     );
   }
 
@@ -151,10 +185,10 @@ class _SwipeDeckState extends ConsumerState<SwipeDeck> {
     showDialog<void>(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Get more'),
+        title: Text(AppLocalizations.of(context)?.sGetMore ?? 'Get more'),
         content: Text(message),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Not now')),
+          TextButton(onPressed: () => Navigator.pop(c), child: Text(AppLocalizations.of(context)?.sNotNow ?? 'Not now')),
           FilledButton(
             onPressed: () {
               Navigator.pop(c);
@@ -183,32 +217,109 @@ class _SwipeDeckState extends ConsumerState<SwipeDeck> {
             action: OutlinedButton.icon(
               onPressed: () {
                 _done.clear();
+                _passed.clear();
                 ref.invalidate(nearbyProvider);
               },
               icon: const Icon(Icons.refresh),
-              label: const Text('Refresh'),
+              label: Text(AppLocalizations.of(context)?.sRefresh ?? 'Refresh'),
             ),
           );
         }
-        final p = deck.first;
-        return RefreshIndicator(
-          onRefresh: () async => ref.refresh(nearbyProvider.future),
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              ProfileCard(
-                key: ValueKey(p.ref),
-                profile: p,
-                onPass: _busy ? null : () => _act(p, 'pass'),
-                onLike: _busy ? null : () => _act(p, 'like'),
-                onSuperLike: _busy ? null : () => _act(p, 'superlike'),
+        return Column(children: [
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 8, 14, 6),
+              child: SwipeStack<PublicProfile>(
+                controller: _controller,
+                items: deck,
+                keyOf: (p) => p.ref,
+                onSwipe: _send,
+                labelOf: describeProfile,
+                cardBuilder: (context, p, progress) => DeckCard(
+                  profile: p,
+                  like: progress.like,
+                  nope: progress.nope,
+                  superLike: progress.superLike,
+                  onOpen: () => showProfileSheet(
+                    context,
+                    p,
+                    actions: LikeWithNote(onSend: (note) {
+                      Navigator.of(context).pop();
+                      _pendingNote = note;
+                      _controller.swipe('like');
+                    }),
+                  ),
+                ),
               ),
-              const SizedBox(height: 8),
-              Text('${deck.length - 1} more nearby', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
-            ],
+            ),
           ),
-        );
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
+            child: DeckActions(
+              onRewind: _rewind,
+              onPass: () => _controller.swipe('pass'),
+              onSuperLike: () => _controller.swipe('superlike'),
+              onLike: () => _controller.swipe('like'),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(deck.length > 1 ? '${deck.length - 1} more nearby' : 'Last one nearby', style: Theme.of(context).textTheme.bodySmall),
+          ),
+        ]);
       },
+    );
+  }
+}
+
+/// Today's best people for you, each with a sentence on why.
+class TopPicksList extends ConsumerStatefulWidget {
+  const TopPicksList({super.key});
+  @override
+  ConsumerState<TopPicksList> createState() => _TopPicksListState();
+}
+
+class _TopPicksListState extends ConsumerState<TopPicksList> {
+  final Set<String> _done = {};
+
+  Future<void> _act(TopPick p, String action) async {
+    try {
+      final r = await ref.read(discoveryRepositoryProvider).swipe(p.profile.ref, action);
+      if (!mounted) return;
+      setState(() => _done.add(p.profile.ref));
+      if (r.matched) {
+        showMatchOverlay(context, profile: p.profile, onSayHi: () {
+          if (r.matchId != null) context.go('/chats/${r.matchId}');
+        });
+      }
+    } on ApiException catch (e) {
+      if (mounted) showMessage(context, e.message);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final picks = ref.watch(topPicksProvider);
+    if (picks.hasError && !picks.hasValue) {
+      return _NeedsSetup(error: picks.error!, onRetry: () => ref.invalidate(topPicksProvider));
+    }
+    return AsyncListView<TopPick>(
+      value: picks.whenData((l) => l.where((p) => !_done.contains(p.profile.ref)).toList()),
+      onRefresh: () async => ref.refresh(topPicksProvider.future),
+      emptyTitle: 'No picks right now',
+      emptyMessage: 'Check back later, or widen your filters and share more about yourself so we can find people you will click with.',
+      emptyIcon: Icons.auto_awesome_outlined,
+      itemBuilder: (_, p) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+          child: Row(children: [
+            const Icon(Icons.auto_awesome, size: 18),
+            const SizedBox(width: 8),
+            Expanded(child: Text(p.why, key: const Key('pick_why'), style: Theme.of(context).textTheme.titleSmall)),
+          ]),
+        ),
+        ProfileCard(profile: p.profile, onPass: () => _act(p, 'pass'), onLike: () => _act(p, 'like')),
+      ]),
     );
   }
 }
@@ -258,9 +369,34 @@ class LikesYouList extends ConsumerWidget {
           onRefresh: () async => ref.refresh(likesYouProvider.future),
           emptyTitle: 'No likes yet',
           emptyIcon: Icons.favorite_border,
-          itemBuilder: (_, p) => ProfileCard(profile: p),
+          itemBuilder: (_, p) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            if ((l.comments[p.ref] ?? '').isNotEmpty) _LikeNote(text: l.comments[p.ref]!),
+            ProfileCard(profile: p),
+          ]),
         );
       },
+    );
+  }
+}
+
+/// The note someone sent with their like, shown above their card.
+class _LikeNote extends StatelessWidget {
+  const _LikeNote({required this.text});
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    return Container(
+      key: const Key('like_note_bubble'),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: t.colorScheme.primaryContainer.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16)),
+      child: Row(children: [
+        Icon(Icons.format_quote, color: t.colorScheme.primary),
+        const SizedBox(width: 8),
+        Expanded(child: Text(text, style: t.textTheme.bodyLarge)),
+      ]),
     );
   }
 }

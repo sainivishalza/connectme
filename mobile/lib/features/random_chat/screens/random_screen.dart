@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -68,7 +69,7 @@ class _RandomScreenState extends ConsumerState<RandomScreen>
     }
     setState(() => _state = s.state);
     if (s.state == RandomState.waiting) {
-      if (!_pulse.isAnimating) _pulse.repeat();
+      if (!_pulse.isAnimating && !MediaQuery.disableAnimationsOf(context)) _pulse.repeat();
       _timer ??= Timer.periodic(widget.pollInterval, (_) => _poll());
     } else {
       _pulse.stop();
@@ -183,7 +184,7 @@ class _RandomScreenState extends ConsumerState<RandomScreen>
               OutlinedButton(
                 key: const Key('random_cancel'),
                 onPressed: _cancel,
-                child: const Text('Stop looking'),
+                child: Text(AppLocalizations.of(context)?.sStopLooking ?? 'Stop looking'),
               )
             else
               FilledButton(

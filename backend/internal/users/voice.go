@@ -193,3 +193,21 @@ func (s *Service) PurgeVoiceFile(ctx context.Context, userID string) error {
 	}
 	return s.media.Delete(ctx, *id)
 }
+
+// OpenVoiceOf returns a member's voice intro audio with no visibility check.
+// Only callers that have already established both people's consent (the
+// staged reveal in matching) may use it.
+func (s *Service) OpenVoiceOf(ctx context.Context, ownerID string) ([]byte, string, error) {
+	var voiceID, mime string
+	err := s.db.QueryRow(ctx, `
+		SELECT p.voice_id::text, p.voice_mime FROM profiles p JOIN users u ON u.id = p.user_id
+		 WHERE p.user_id = $1::uuid AND p.voice_id IS NOT NULL AND u.is_verified AND NOT u.is_banned`, ownerID).Scan(&voiceID, &mime)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, "", ErrNotFound
+	}
+	if err != nil {
+		return nil, "", err
+	}
+	data, err := s.media.Get(ctx, voiceID)
+	return data, mime, err
+}

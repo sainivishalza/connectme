@@ -40,14 +40,34 @@ class ChatState {
     identityChanged: identityChanged ?? this.identityChanged,
   );
 
-  /// Messages whose burn timer (counted from when they were read) has not run out.
-  List<ChatMessage> visible(DateTime now) => [
-    for (final m in messages)
-      if (!(m.burnAfterS > 0 &&
-          m.readAt != null &&
-          now.isAfter(m.readAt!.add(Duration(seconds: m.burnAfterS)))))
-        m,
-  ];
+  /// What the chat shows: messages whose burn timer (counted from when they
+  /// were read) has not run out, minus the ones that were unsent, with each
+  /// message's reactions attached. Reactions and unsend notices are control
+  /// messages in the same encrypted stream; they are applied here, in order,
+  /// and never shown as bubbles. A notice only counts when it comes from the
+  /// message's own sender, so nobody can make the other person's words vanish.
+  List<ChatMessage> visible(DateTime now) {
+    final byId = {for (final m in messages) m.id: m};
+    final gone = <String>{};
+    final reacts = <String, Map<String, String>>{};
+    for (final c in messages) {
+      if (c.kind != MsgKind.control || c.ctlTarget == null) continue;
+      final target = byId[c.ctlTarget];
+      if (c.ctl == 'del') {
+        if (target != null && target.fromMe == c.fromMe) gone.add(target.id);
+      } else if (c.ctl == 'react' && target != null) {
+        final who = reacts.putIfAbsent(target.id, () => {});
+        c.emoji.isEmpty ? who.remove(c.fromMe ? 'me' : 'them') : who[c.fromMe ? 'me' : 'them'] = c.emoji;
+      }
+    }
+    return [
+      for (final m in messages)
+        if (m.kind != MsgKind.control &&
+            !gone.contains(m.id) &&
+            !(m.burnAfterS > 0 && m.readAt != null && now.isAfter(m.readAt!.add(Duration(seconds: m.burnAfterS)))))
+          reacts.containsKey(m.id) ? m.copyWith(reactions: reacts[m.id]) : m,
+    ];
+  }
 }
 
 /// Family key: conversation id + whether it is a merged group chat.
@@ -152,7 +172,22 @@ class ChatController extends AsyncNotifier<ChatState> {
           : await _sec.decryptDirect(_id, w.ciphertext);
       final p = MessagePayload.decode(bytes);
       if (p == null) return locked('Unsupported message');
+      if (p.ctl != null) {
+        return ChatMessage(
+          id: w.id,
+          fromMe: false,
+          kind: MsgKind.control,
+          ctl: p.ctl,
+          ctlTarget: p.target,
+          emoji: p.emoji,
+          burnAfterS: 0,
+          createdAt: w.createdAt,
+          readAt: w.readAt,
+        );
+      }
       return ChatMessage(
+        replyToId: p.replyTo,
+        replyQuote: p.quote,
         id: w.id,
         fromMe: false,
         kind: p.type == 'image'
@@ -273,15 +308,58 @@ class ChatController extends AsyncNotifier<ChatState> {
     await refresh();
   }
 
-  Future<void> sendText(String text) async {
+  /// [replyTo] makes this a reply: it carries the other message's id and a
+  /// short quote of it, inside the encrypted payload.
+  Future<void> sendText(String text, {ChatMessage? replyTo}) async {
     final t = text.trim();
     if (t.isEmpty) return;
     _requireTrustedKey();
+    final quote = replyTo == null || replyTo.id.startsWith('tmp-') ? null : excerpt(replyTo);
     await _send(
-      MessagePayload.text(t.length > 4000 ? t.substring(0, 4000) : t),
+      MessagePayload.text(t.length > 4000 ? t.substring(0, 4000) : t, replyTo: quote == null ? null : replyTo!.id, quote: quote ?? ''),
       'text',
       null,
     );
+  }
+
+  /// A short, plain description of a message for the quote in a reply.
+  static String excerpt(ChatMessage m) {
+    switch (m.kind) {
+      case MsgKind.image:
+        return 'Photo';
+      case MsgKind.voice:
+        return 'Voice note';
+      case MsgKind.text:
+        final t = m.text.replaceAll('\n', ' ').trim();
+        return t.length > 80 ? '${t.substring(0, 80)}…' : t;
+      default:
+        return '';
+    }
+  }
+
+  /// Reacts to [m] with [emoji]; reacting with the same emoji again takes it back.
+  Future<void> react(ChatMessage m, String emoji) async {
+    if (m.id.startsWith('tmp-') || m.kind == MsgKind.control) return;
+    _requireTrustedKey();
+    final mine = state.value?.visible(DateTime.now()).where((x) => x.id == m.id).firstOrNull?.reactions['me'];
+    await _send(MessagePayload.react(m.id, mine == emoji ? '' : emoji), 'text', null);
+  }
+
+  /// Unsends one of my own messages for everyone: it is deleted on the server,
+  /// then the other person's app is told so it disappears there right away.
+  Future<void> unsend(ChatMessage m) async {
+    if (!m.fromMe || m.pending || m.id.startsWith('tmp-') || m.kind == MsgKind.control) return;
+    await _repo.unsendMessage(_id, m.id);
+    final cur = state.value;
+    if (cur != null) state = AsyncData(cur.copyWith(messages: cur.messages.where((x) => x.id != m.id).toList()));
+    final c = await _cache.load(_id);
+    c.remove(m.id);
+    await _cache.save(_id, c);
+    try {
+      await _send(MessagePayload.unsend(m.id), 'text', null);
+    } catch (_) {
+      // The notice is only a courtesy; the server copy is already gone.
+    }
   }
 
   Future<void> sendImage(Uint8List bytes, {String mime = 'image/jpeg'}) async {
@@ -320,16 +398,21 @@ class ChatController extends AsyncNotifier<ChatState> {
     final pending = ChatMessage(
       id: tmpId,
       fromMe: true,
-      kind: type == 'image'
-          ? MsgKind.image
-          : (type == 'voice' ? MsgKind.voice : MsgKind.text),
+      kind: p.ctl != null
+          ? MsgKind.control
+          : (type == 'image' ? MsgKind.image : (type == 'voice' ? MsgKind.voice : MsgKind.text)),
       text: p.text,
       mediaId: mediaId,
       mediaKey: p.key,
       mime: p.mime,
-      burnAfterS: burn,
+      burnAfterS: p.ctl != null ? 0 : burn,
       createdAt: DateTime.now(),
       pending: true,
+      replyToId: p.replyTo,
+      replyQuote: p.quote,
+      ctl: p.ctl,
+      ctlTarget: p.target,
+      emoji: p.emoji,
     );
     state = AsyncData(cur.copyWith(messages: [...cur.messages, pending]));
 

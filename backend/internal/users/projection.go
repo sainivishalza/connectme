@@ -76,11 +76,14 @@ type PublicProfile struct {
 	Bio         string   `json:"bio,omitempty"`
 	Age         int      `json:"age,omitempty"`
 	Photos      []string `json:"photos,omitempty"`
-	Tags        []string `json:"tags"`
-	Intro       string   `json:"intro,omitempty"`
-	Mood        string   `json:"mood,omitempty"`
-	Distance    string   `json:"distance,omitempty"`
-	HotelName   string   `json:"hotel_name,omitempty"`
+	// PhotoCaptions lines up with Photos ("" where a photo has none) and is
+	// present only when at least one photo has a caption.
+	PhotoCaptions []string `json:"photo_captions,omitempty"`
+	Tags          []string `json:"tags"`
+	Intro         string   `json:"intro,omitempty"`
+	Mood          string   `json:"mood,omitempty"`
+	Distance      string   `json:"distance,omitempty"`
+	HotelName     string   `json:"hotel_name,omitempty"`
 	// TravelMood is the guest's chosen mood for this stay (business, company,
 	// guide); set by the geo layer on hotel-feed cards only.
 	TravelMood string `json:"travel_mood,omitempty"`
@@ -93,6 +96,24 @@ type PublicProfile struct {
 	ReelS int `json:"reel_s,omitempty"`
 	// Chapters is how many narrative chapters the profile has (non-anonymous only).
 	Chapters int `json:"chapters,omitempty"`
+	// IDVerified is the badge for a member whose ID a moderator checked. It
+	// identifies nobody, so anonymous cards carry it too.
+	IDVerified bool `json:"id_verified,omitempty"`
+	// CharmLevel (2 and up) from gifts received, on visible profiles of members
+	// who chose to show it. Never set on anonymous profiles.
+	CharmLevel int `json:"charm_level,omitempty"`
+	// Followers counts people following this member; Following is whether the
+	// viewer is one of them. Visible profiles only.
+	// QuizMatch is the viewer's compatibility quiz match with this person, a
+	// percentage rounded to ten, once 8+ questions are shared. Shown on
+	// anonymous cards too.
+	QuizMatch int  `json:"quiz_match,omitempty"`
+	Followers int  `json:"followers,omitempty"`
+	Following bool `json:"following,omitempty"`
+	// Details: lifestyle answers always, identifying ones only in full profiles.
+	Details *PublicDetails `json:"details,omitempty"`
+	// Prompts are free-text answers, so they appear on full profiles only.
+	Prompts []PromptAnswer `json:"prompts,omitempty"`
 }
 
 // PhotoURL is the authenticated path a photo is served from. Direct storage
@@ -119,8 +140,14 @@ func Project(row ProfileRow, vis Visibility) PublicProfile {
 		p.DisplayName = row.DisplayName
 		p.Bio = row.Bio
 		p.Age = row.Age
+		captioned := false
 		for _, ph := range row.Photos {
 			p.Photos = append(p.Photos, PhotoURL(ph.ID))
+			p.PhotoCaptions = append(p.PhotoCaptions, ph.Caption)
+			captioned = captioned || ph.Caption != ""
+		}
+		if !captioned {
+			p.PhotoCaptions = nil
 		}
 	}
 	return p

@@ -44,9 +44,11 @@ func New(baseURL, key string) *Client {
 }
 
 type Person struct {
-	Tags        []string `json:"tags"`
-	Age         *int     `json:"age,omitempty"`
-	ActiveHours []int    `json:"active_hours"`
+	Tags []string `json:"tags"`
+	// Lifestyle: goal, kids, drinking, smoking, exercise (only what was answered).
+	Lifestyle   map[string]string `json:"lifestyle,omitempty"`
+	Age         *int              `json:"age,omitempty"`
+	ActiveHours []int             `json:"active_hours"`
 }
 
 type History struct {

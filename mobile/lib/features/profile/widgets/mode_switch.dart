@@ -38,8 +38,9 @@ class ModeSwitch extends StatelessWidget {
       'hotel' => Icons.hotel_outlined,
       _ => Icons.wb_sunny_outlined,
     };
+    final still = MediaQuery.disableAnimationsOf(context);
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 420),
+      duration: still ? Duration.zero : const Duration(milliseconds: 420),
       curve: Curves.easeOutCubic,
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
       decoration: BoxDecoration(
@@ -53,7 +54,7 @@ class ModeSwitch extends StatelessWidget {
           Row(
             children: [
               AnimatedContainer(
-                duration: const Duration(milliseconds: 420),
+                duration: still ? Duration.zero : const Duration(milliseconds: 420),
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(

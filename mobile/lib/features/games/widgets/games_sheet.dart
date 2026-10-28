@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -15,7 +16,7 @@ Future<void> showGamesSheet(
   required Future<void> Function(String text) sendText,
 }) {
   return showModalBottomSheet<void>(
-    context: context,
+    context: context, useRootNavigator: true,
     isScrollControlled: true,
     showDragHandle: true,
     builder: (c) => _GamesSheet(matchId: matchId, sendText: sendText),
@@ -68,7 +69,7 @@ class _GamesSheetState extends ConsumerState<_GamesSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Play a game', style: t.textTheme.headlineSmall),
+              Text(AppLocalizations.of(context)?.sPlayAGame ?? 'Play a game', style: t.textTheme.headlineSmall),
               const SizedBox(height: 4),
               Text('Pick one and send it to the chat.', style: t.textTheme.bodyMedium?.copyWith(color: t.colorScheme.onSurfaceVariant)),
               const SizedBox(height: 16),
@@ -102,7 +103,7 @@ class _GamesSheetState extends ConsumerState<_GamesSheet> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Expanded(child: FilledButton(key: const Key('game_send'), onPressed: _send, child: const Text('Send to chat'))),
+                  Expanded(child: FilledButton(key: const Key('game_send'), onPressed: _send, child: Text(AppLocalizations.of(context)?.sSendToChat ?? 'Send to chat'))),
                 ]),
               ],
               if (widget.matchId != null) ...[
@@ -110,10 +111,23 @@ class _GamesSheetState extends ConsumerState<_GamesSheet> {
                 const Divider(),
                 const SizedBox(height: 10),
                 ListTile(
+                  key: const Key('game_td'),
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.theater_comedy_outlined),
+                  title: const Text('Truth or dare, taking turns'),
+                  subtitle: const Text('Each of you gets a turn to choose. Answers go in the chat.'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    final id = widget.matchId!;
+                    Navigator.of(context).pop();
+                    context.push('/td/$id');
+                  },
+                ),
+                ListTile(
                   key: const Key('game_quiz'),
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.quiz_outlined),
-                  title: const Text('Couple quiz'),
+                  title: Text(AppLocalizations.of(context)?.sCoupleQuiz ?? 'Couple quiz'),
                   subtitle: const Text('Answer the same questions, then compare. Nothing is shown until you both finish.'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () {

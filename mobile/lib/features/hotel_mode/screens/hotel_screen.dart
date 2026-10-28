@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../core/theme/tokens.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -23,7 +24,7 @@ class HotelScreen extends ConsumerWidget {
     return stay.when(
       loading: () => const Scaffold(body: Loader()),
       error: (e, _) => Scaffold(
-        appBar: AppBar(title: const Text('Hotel mode')),
+        appBar: AppBar(title: Text(AppLocalizations.of(context)?.sHotelMode ?? 'Hotel mode')),
         body: ErrorView(error: e, onRetry: () => ref.invalidate(currentStayProvider)),
       ),
       data: (s) => s == null ? const _CheckInView() : _StayView(stay: s),
@@ -58,8 +59,8 @@ class _CheckInViewState extends ConsumerState<_CheckInView> {
           'Everything from your stay (chats, matches, gifts, posts) is deleted 24 hours after you check out.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Not now')),
-          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Check in')),
+          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(AppLocalizations.of(context)?.sNotNow ?? 'Not now')),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(AppLocalizations.of(context)?.sCheckIn ?? 'Check in')),
         ],
       ),
     );
@@ -81,7 +82,7 @@ class _CheckInViewState extends ConsumerState<_CheckInView> {
   Widget build(BuildContext context) {
     final hotels = ref.watch(detectedHotelsProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Hotel mode')),
+      appBar: AppBar(title: Text(AppLocalizations.of(context)?.sHotelMode ?? 'Hotel mode')),
       body: hotels.when(
         loading: () => const Loader(),
         error: (e, _) => ErrorView(error: e, onRetry: () => ref.invalidate(detectedHotelsProvider)),
@@ -119,7 +120,7 @@ class _CheckInViewState extends ConsumerState<_CheckInView> {
                         style: FilledButton.styleFrom(minimumSize: const Size(90, 40)),
                         child: _busyHotel == h.id
                             ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                            : const Text('Check in'),
+                            : Text(AppLocalizations.of(context)?.sCheckIn ?? 'Check in'),
                       ),
                     ),
                   ),
@@ -154,7 +155,7 @@ class _StayView extends ConsumerWidget {
                   if (context.mounted) showMessage(context, 'Checked out. Your stay data is deleted in 24 hours.');
                 }
               },
-              child: const Text('Check out'),
+              child: Text(AppLocalizations.of(context)?.sCheckOut ?? 'Check out'),
             ),
           ],
           bottom: const TabBar(tabs: [Tab(text: 'Guests'), Tab(text: 'Board'), Tab(text: 'Drinks')]),
@@ -377,7 +378,7 @@ class _MoodBarState extends ConsumerState<_MoodBar> {
         Text('Show guests who are', style: t.textTheme.labelLarge),
         const SizedBox(height: 6),
         Wrap(spacing: 8, runSpacing: 4, children: [
-          ChoiceChip(key: const Key('filter_all'), label: const Text('Everyone'), selected: filter.isEmpty, onSelected: (_) => ref.read(hotelMoodFilterProvider.notifier).set('')),
+          ChoiceChip(key: const Key('filter_all'), label: Text(AppLocalizations.of(context)?.sEveryone ?? 'Everyone'), selected: filter.isEmpty, onSelected: (_) => ref.read(hotelMoodFilterProvider.notifier).set('')),
           for (final e in travelMoods.entries)
             ChoiceChip(
               key: Key('filter_${e.key}'),

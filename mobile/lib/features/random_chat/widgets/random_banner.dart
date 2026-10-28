@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/tokens.dart';
@@ -122,7 +123,7 @@ class _RandomBannerState extends ConsumerState<RandomBanner> {
                 minimumSize: const Size(0, 40),
                 padding: const EdgeInsets.symmetric(horizontal: 18),
               ),
-              child: const Text('Keep chatting'),
+              child: Text(AppLocalizations.of(context)?.sKeepChatting ?? 'Keep chatting'),
             ),
         ],
       ),

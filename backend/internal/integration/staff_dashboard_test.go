@@ -125,3 +125,82 @@ func tryExec(e *env, sql string) error {
 	_, err := e.db.Exec(context.Background(), sql)
 	return err
 }
+
+func TestStaffAnalyticsShowFunnelAndDailyActivityAsAggregatesOnly(t *testing.T) {
+	e := setup(t)
+	mod := e.newUser("moderator", true, "Mod")
+	plain := e.user("Plain Member")
+	if code, _ := e.callAs("GET", "/moderation/analytics", nil, plain, "user"); code != 403 {
+		t.Errorf("ordinary member read analytics: %d", code)
+	}
+	a, b := e.user("Funnel A"), e.user("Funnel B")
+	e.swipe(a, b, "like")
+	code, body := e.callAs("GET", "/moderation/analytics?days=14", nil, mod, "moderator")
+	if code != 200 {
+		t.Fatalf("analytics: %d %s", code, body)
+	}
+	var out struct {
+		Funnel struct {
+			Days, Registered, Verified, Onboarded, Swiped, Matched int
+			WithPhoto                                              int `json:"with_photo"`
+		} `json:"funnel"`
+		Daily []struct {
+			Day              string
+			Signups, Swipes  int
+			Matches, Reports int
+		} `json:"daily"`
+	}
+	decodeInto(t, body, &out)
+	f := out.Funnel
+	if f.Days != 14 || len(out.Daily) != 14 {
+		t.Errorf("period: days=%d series=%d", f.Days, len(out.Daily))
+	}
+	if !(f.Registered >= f.Verified && f.Verified >= f.Onboarded && f.Onboarded >= f.WithPhoto && f.WithPhoto >= f.Swiped && f.Swiped >= f.Matched) || f.Registered < 3 {
+		t.Errorf("funnel is not a funnel: %+v", f)
+	}
+	today := out.Daily[len(out.Daily)-1]
+	if today.Signups < 3 || today.Swipes < 1 {
+		t.Errorf("today: %+v", today)
+	}
+	// Out-of-range periods are clamped, and nothing personal is in the answer.
+	if _, b2 := e.callAs("GET", "/moderation/analytics?days=100000", nil, mod, "moderator"); !strings.Contains(string(b2), `"days":90`) {
+		t.Errorf("days not clamped: %s", b2)
+	}
+	for _, leak := range []string{"email", "ref", e.refOf(a)} {
+		if strings.Contains(strings.ToLower(string(body)), leak) {
+			t.Errorf("analytics leaks %q", leak)
+		}
+	}
+}
+
+func TestStaffMemberSearchFindsByNameOrRefTreatsWildcardsAsText_AndIsAudited(t *testing.T) {
+	e := setup(t)
+	mod := e.newUser("moderator", true, "Mod")
+	plain := e.user("Plain Searcher")
+	target := e.user("Zephyrine Quill")
+	ref := e.refOf(target)
+	if code, _ := e.callAs("GET", "/moderation/members?q=zeph", nil, plain, "user"); code != 403 {
+		t.Errorf("ordinary member searched: %d", code)
+	}
+	if code, _ := e.callAs("GET", "/moderation/members?q=z", nil, mod, "moderator"); code != 422 {
+		t.Errorf("one-letter search: %d", code)
+	}
+	_, byName := e.callAs("GET", "/moderation/members?q=zephyr", nil, mod, "moderator")
+	_, byRef := e.callAs("GET", "/moderation/members?q="+ref, nil, mod, "moderator")
+	for name, b := range map[string][]byte{"name": byName, "ref": byRef} {
+		if !strings.Contains(string(b), ref) || !strings.Contains(string(b), "Zephyrine Quill") {
+			t.Errorf("search by %s missed the member: %s", name, b)
+		}
+	}
+	if _, all := e.callAs("GET", "/moderation/members?q=%25%25", nil, mod, "moderator"); strings.Contains(string(all), ref) {
+		t.Errorf("a wildcard listed everyone: %s", all)
+	}
+	for _, leak := range []string{`"email"`, "date_of_birth", "latitude"} {
+		if strings.Contains(string(byName), leak) {
+			t.Errorf("search result leaks %s", leak)
+		}
+	}
+	if n := e.count(`SELECT count(*) FROM staff_audit_log WHERE action='member_search' AND actor_id=$1`, mod); n < 3 {
+		t.Errorf("searches not audited: %d", n)
+	}
+}

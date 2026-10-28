@@ -36,8 +36,11 @@ func Routes(svc *Service, rdb *redis.Client, secret []byte) http.Handler {
 	r.With(write).Post("/invites/{id}/decline", h.respond(false))
 	r.With(read).Get("/matches", h.matches)
 	r.With(read).Get("/matches/{gm}/dates", h.dates)
+	r.With(lim("replies", 20, time.Hour)).Post("/matches/{gm}/reply-ideas", h.replyIdeas)
 	r.With(write).Post("/dates/{id}/confirm", h.confirmDate)
 	r.With(write).Delete("/dates/{id}", h.cancelDate)
+	r.With(read).Get("/dates/{id}/logistics", h.logistics)
+	r.With(lim("pay", 30, time.Hour)).Post("/dates/{id}/logistics", h.payLogistics)
 
 	r.With(read).Get("/{id}", h.get)
 	r.With(lim("invite", 30, time.Hour)).Post("/{id}/invite", h.invite)
@@ -56,6 +59,8 @@ func fail(w http.ResponseWriter, err error) {
 		middleware.WriteError(w, http.StatusUnprocessableEntity, ve.Msg)
 	case errors.Is(err, ErrNotFound):
 		middleware.WriteError(w, http.StatusNotFound, "not found")
+	case errors.Is(err, ErrInsufficient):
+		middleware.WriteError(w, http.StatusPaymentRequired, err.Error())
 	case errors.Is(err, ErrForbidden), errors.Is(err, ErrNeedsVerified):
 		middleware.WriteError(w, http.StatusForbidden, err.Error())
 	case errors.Is(err, ErrNeedsLocation), errors.Is(err, ErrNotReady):
@@ -270,4 +275,40 @@ func (h *Handler) venue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	middleware.WriteJSON(w, http.StatusOK, s)
+}
+
+func (h *Handler) replyIdeas(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Lines []ChatLine `json:"lines"`
+	}
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8<<10))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&body); err != nil {
+		middleware.WriteError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	out, err := h.svc.ReplyIdeas(r.Context(), uid(r), chi.URLParam(r, "gm"), body.Lines)
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	middleware.WriteJSON(w, http.StatusOK, out)
+}
+
+func (h *Handler) logistics(w http.ResponseWriter, r *http.Request) {
+	l, err := h.svc.LogisticsFor(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "id"))
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	middleware.WriteJSON(w, http.StatusOK, l)
+}
+
+func (h *Handler) payLogistics(w http.ResponseWriter, r *http.Request) {
+	l, err := h.svc.PayLogistics(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "id"))
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	middleware.WriteJSON(w, http.StatusOK, l)
 }

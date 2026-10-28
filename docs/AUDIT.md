@@ -151,6 +151,125 @@ Method: read the authentication, token, rate-limit, CORS, realtime-relay and key
 Checked and found sound: access-token validation (algorithm pinned, issuer, expiry, type), refresh rotation with reuse detection and family revocation, email-token storage (hashes only, single use), constant-time-equivalent login for unknown emails, 72-byte bcrypt limit, X-Forwarded-For only from trusted proxies, security headers and CSP, upload re-encoding and pixel limits, no secrets or message bodies in logs, non-root containers with read-only filesystems, SQL built only from fixed helpers (audit test), and the domain separation of the HMAC uses of the JWT secret (video tickets and forum aliases cannot collide with a JWT signing input).
 Not covered: an independent penetration test, a review of the native Signal implementation beyond its integration, and fuzzing of the media parsers.
 
+### 3.15 AI wingman
+- **Tested against a fake provider only.** Eleven bad-answer shapes (links, handles, numbers, missing or extra keys, wrong types, over-long strings, abusive content), provider failures (500, 429, malformed envelope, timeout), injected tags, caching and the call budget are tested; the real model has not been called, so answer quality, latency (the 8 s timeout and 12 s API timeout are guesses) and cost per suggestion are unmeasured.
+- **Prompt injection is bounded, not impossible.** A member can put a few plain words into their interests; they are filtered and treated as data, and the output is validated, but a model can still be nudged to say something odd that passes the filters (for example an unkind but not flagged remark). The deterministic filters are the same rule-based ones used for profile text and share their limits (see 3.1).
+- **Data leaving the system:** activity, group size and up to 8 interest words go to the model provider with each uncached request. No identifiers. A privacy notice should mention it before `WINGMAN_PROVIDER=llm` is turned on.
+
+### 3.16 Group logistics fee and sponsored placements
+- **Money paths tested locally only:** the fee is charged from the in-app coin wallet (no Stripe involved); double-pay, broke, stranger, cancel-refund and after-start cases are tested. Whether 100 coins is the right price is a product guess.
+- **Ads have no billing, reporting UI or advertiser accounts.** Placements are created through the admin API; totals are readable by admins only. The frequency cap fails open if Redis is down (a member may then see more ads, never fewer protections for data). Link safety is a syntax check, not a reputation check: an admin could still point at a bad public site, which is why creating placements is staff-only and audited as a staff route.
+- **Disclosure:** the card is labelled "Sponsored". Local advertising-disclosure rules (and whether location targeting needs consent wording) need legal review.
+
+### 3.17 Real LiveKit, nudity model and video scanner (local)
+- **LiveKit:** a real open-source server in Docker accepted our tokens, carried audio from a speaker to a listener, and refused a listener's publish (opt-in test). Not covered: real phones/cameras, NAT/TURN, load, the Flutter client against it.
+- **Nudity model:** Falconsai/nsfw_image_detection (Apache-2.0), exported to ONNX; output matches the original to 1e-6. About 0.35 s per image on this CPU. Only benign synthetic images were run: **no accuracy figure exists for real photos**, and I did not test it on explicit material. Known limits of this class of model: false positives on skin-toned or beach photos, misses on stylised or partial content, nothing for violence. Measure it on a labelled sample from your own audience before relying on it, and keep human review.
+- **Video:** eight sampled frames per clip, strictest wins; 60 MB / 120 s limits. A brief insertion between samples, and audio, are not checked. It is not CSAM detection (that still needs the licensed hash service, F1.20).
+- **Ops:** the model file (343 MB) is not in git (`ai-service/models/`); mount it into the container and set `NSFW_MODEL_PATH`. A video scan costs roughly 3 s of CPU, so the scanner call can approach the API's 60 s timeout on a busy single worker: run more than one.
+
+### 3.18 Ask Wingman for a reply
+- Privacy trade-off is deliberate and visible: sharing is per message, per request, by the member. The other participants' words leave the chat when a member includes them, and the other participants are not told. This is stated in the sheet; legal/privacy review should decide whether it needs group-level consent or a notice. Not tested against a real model (needs the API key).
+
+### 3.19 Load test, monitoring, error tracking, payouts
+- **Load test (real HTTP, laptop, everything on one machine):** `go run ./cmd/loadtest` drives `/users/me`, `/users/nearby`, the feed, matches and balance with virtual users that pause ~0.8 s between requests, with 5,000 people in one search area. The API sustained about 380-420 requests per second with **0 server errors**: 500 users p50 280 ms / p95 1.6 s; 1,000 users p50 0.96 s / p95 4.2 s; at 2,000+ users the client timeouts (20 s) began. The load generator, API, Postgres, Redis and Mongo shared one CPU, so this is a floor, not a capacity statement; **10,000 concurrent users has not been run and needs separate hardware** (several API replicas, a dedicated database, a distributed load generator). The test found and fixed the nearby hotspot (decision 139). Writes (swipes, messages) and websockets are not covered.
+- **Prometheus:** run against the real API in Docker (`ops/dev/monitoring`): the scrape target is up and all 10 alert rules load. **Grafana** could not be pulled (the registry connection kept dropping), so the dashboard has not been rendered; its queries use the same metric names the alerts do.
+- **Error tracking** (decision 140) is tested against a stand-in collector (envelope format, scrubbing, de-duplication, rate cap, panic recovery, a stalled collector). It has not been run against a real Sentry.
+- **Payout ledger** (decision 141) tested including concurrent settlement. No money moves; reconciling with the bank is a manual step.
+
+### 3.20 ID check (F1.19)
+- **Tested with generated images only** (review, rejection reasons, resubmission, audit entries, deletion on decision/expiry/erasure, no self-review, rejection limits). No real documents were used, and the quality of a reviewer's decisions is a staffing matter: moderators need guidance on what a genuine ID and a manipulated photo look like, and a second reviewer for doubtful cases.
+- **Sensitive data:** ID documents are among the most sensitive things the system can hold. Keep the private store encrypted at rest (`S3_SSE`), limit who has the moderator role, and check the audit log for `view_id_check` entries. The privacy policy draft needs a paragraph on this check and its retention. The upload scan uses the same stub as photos in development; **a real hash-matching provider (F1.20) is still required before launch**, and applies to these uploads too.
+- **Not covered:** liveness beyond the code on paper (a recorded video or a live prompt would be stronger), automatic age estimation, document-type or expiry checks, and the member's right to an explanation beyond the fixed reason.
+
+### 3.21 Violence model, Grafana, group game
+- **Violence model:** ONNX output matches PyTorch (2e-6). Ten ordinary photos scored 0.04-0.10 on the "violence" class and none were flagged by the combined models; **no violent image was tested** and class order is assumed (decision 147). About 1.7 s per image with both models on this busy laptop, so an eight-frame video scan can take around 15 s of CPU: run several AI-service workers and keep the API's scanner timeout in mind.
+- **Grafana 13 and Prometheus** ran against the real API: all 12 dashboard queries return through Grafana's datasource and all 10 alert rules evaluate (none firing). Panels for 5xx, rate limiting, AI calls, moderation and Stripe had no events to draw because none occurred in the test.
+- **Group Would you rather** tested end to end (membership, anonymity, one running round, no repeat, timeout, finished-round votes refused). Group chats are end-to-end encrypted and this game does not touch chat content.
+
+### 3.22 Rich profiles
+- **Privacy rule is tested** (an incognito card shows lifestyle answers and none of the identifying ones or any free text), but the lifestyle answers themselves narrow people down a little: "wants kids, never smokes, speaks Portuguese" combined with a distance band is more identifying than a bare tag list. This is a deliberate trade-off (decision 149); a member who wants more cover can leave those answers blank.
+- **Free-text screening:** job title, hometown and prompt answers go through the same text moderation as bios. The 24 prompt questions were written to avoid personal-data requests, but answers are member-typed.
+- **Match scoring weights are a judgement**, not tuned on outcomes; there is no data yet to tune on.
+- **Not done yet in this area:** multiple-photo carousel on cards, reordering photos, photo captions, answering a prompt directly with a like or comment.
+
+### 3.23 Momo-style social layer
+- **Levels and leaderboards:** privacy rules tested end to end (charm shown by default, supporter off, no coin totals in any response about another person, boards exclude blocked, hidden, unverified, opted-out and anonymous members). Level maths is unit-tested. Leaderboard rankings use the live ledger and run a per-candidate lookup, so they are fine for thousands of candidates but not measured at platform scale.
+- **Follows:** idempotent, capped, anonymous members unfollowable and unlisted, block removes follows, go-live push is generic and respects the new switch. Found and fixed while testing: a push-preferences scan that had one column too few (caught by the existing prefs test), and an audit test that rightly rejected SQL assembled with Sprintf in the levels code (replaced by SQL functions and one static query).
+- **Live topics and pin:** host-only pin, length and text screening, viewers see it through the existing poll.
+- **Post comments:** visible exactly to those who can see the post; universe nicknames are per-post and never reveal the author or a commenter; blocks hide comments; tested including deletion rights and report.
+- **Not done in this area:** push for comments, reactions on comments, threaded replies, co-hosts, room themes, gift animations on the viewer screen.
+
+### 3.24 Anonymous depth
+- **Quiz:** answers are never returned for other people; the match is rounded and needs 8 shared answers. Probing by answering many questions is possible in principle (decision 174). Tested including anonymous cards and removal.
+- **Voice step:** consent is per person, the response never says the other side is waiting, the card stays anonymous after unlocking, outsiders, ended matches and pre-consent requests get 404. A voice can identify someone who knows them; both people opt in.
+- **Voice room topics:** label and filter only. Found while building: the first table name for the quiz clashed with an existing games table; renamed to `compat_answers`.
+- **Not done:** reveal timers, quiz-based ordering, anonymous profile "stories".
+
+### 3.25 Onboarding and quiet hours
+- **Quiet hours:** unit-tested window maths (overnight, edges, time zones) and an end-to-end test (message suppressed inside the window, delivered after it is switched off, other preferences untouched, invalid times refused). Calls are exempt by design.
+- **Onboarding:** tested for new members (sent to the welcome once), skipping, finishing and already-onboarded members. Not covered: members who sign in on a second device before finishing the first (they see it again until one device finishes).
+- **Screenshots:** levels, quiz, notifications and live filters were checked at phone size against the real API (the Live list showed its error state because LiveKit is not running locally).
+
+### 3.26 Social layer, second pass
+- **Co-hosts:** host-only invites, two at most, Open-mode members only, rights tested (publish, pin, mute; not end, not add, not moderate the host), removal revokes them. LiveKit permission changes are best effort and were not run against a real LiveKit here.
+- **Video comments:** same visibility and naming rules as clips, block-aware, deletion and report rights tested, following filter tested.
+- **Comment push:** generic text, never for your own comment, respects its switch.
+- **Not done:** room themes, event groups, sounds on short videos, threaded replies.
+
+### 3.27 Investor page
+- **Maths:** unit-tested (1% at the first fill, 0.5% after the next equal amount, 0.001% for US$1, rounding never exceeds the pool). Money is integer cents; parsing rejects signs, exponents, commas and more than two decimals.
+- **Privacy and abuse:** public board leaks no amounts or emails (tested); a member cannot confirm their own pledge (403); confirming twice is refused; pledges are capped and rate limited; confirmations are audit-logged.
+- **Not covered, and the real risk:** legality. The app handles no money and issues nothing, but offering ownership to the public needs legal advice (securities and crowdfunding rules, investor agreements, tax, KYC/AML on who sends money). There is no cap table for tax or voting purposes, no agreements, no refunds flow, and no check on where money came from. Treat the page as a demo until that is in place.
+
+### 3.28 Accessibility and dark mode
+- **Automated:** contrast of every theme colour pair, 2x text on nine screens, tap-target and label guidelines on nine more, swipe-deck semantics, appearance persistence. All pass.
+- **By eye:** phone-size screenshots in dark mode of Profile, Invest and Appearance; the screenshots also caught a text-size selector that broke "Default" mid-word, which no test would.
+- **Not verified:** a real screen reader (TalkBack, VoiceOver) on a device; the Flutter semantics tree is checked, but how it sounds is not. Photos have no descriptions (members do not write any), video and live-room media have no captions, and live chat is not announced as it arrives. Colour is never the only signal in the new screens, but older screens were not audited for that.
+
+### 3.29 Safety toolkit
+- **Tested:** contacts need the emailed confirmation before any plan can use them and receive nothing earlier; wrong tokens fail; plans are validated (time window, check-in delay, place text stripped of tags); other members cannot read, remove or check in someone else's items; a missed deadline emails the contact exactly once, a cancelled or completed plan never alerts, and checking in late sends an all-clear; the confirm route is public by design and rate limited; scam scanner has positive and negative cases.
+- **Not verified:** real email delivery (only the log mailer and a fake sender were used; production needs SMTP, and the confirmation link needs `APP_URL` to point at the deployed web app); push reminders on a device; the job runs once a minute so an alert can be up to a minute late.
+- **Limits worth knowing:** a plan depends on the contact reading their email in time; the app does not track location or call emergency services; the scam scanner is keyword-based and English-only.
+
+### 3.30 Themes, timed reveals, summary email, translations
+- **Reveal timer:** tested for validation, outsiders, an unanswered proposal never firing, agreement making it final, cancelling by either side, firing once and unmasking both exactly like a manual reveal, and not before the time. Not covered: a clock change or the job being down for a while (it catches up on the next run).
+- **Weekly summary:** tested for opt-in, counts only with no names, nothing sent when there is nothing to report, once per week, one-tap unsubscribe and tampered or forged tokens. Real email was not sent (log mailer and a fake sender only).
+- **Translations:** structure tested (same keys and placeholders everywhere, the picker follows the supported list, switching language changes the screen at once). The Hindi and Spanish wording was not checked by a native speaker, and most of the app is still English.
+- **Room themes:** colours were not checked against video content; a bright picture under a light tint could reduce chat legibility, which is why chat sits on its own dark panel.
+
+### 3.31 Event groups
+- **Tested:** outsiders (no RSVP) cannot read or write; leaving the event closes the board; anonymous members are named "Someone" and absent from the going list; blocks hide messages; delete and report rights; the cleanup job removes boards a day after the event.
+- **Not covered:** moderation load (no staff queue view specific to event groups beyond reports); very large events (the going count is exact, the names list is capped at 50).
+
+### 3.32 Live polls and more translations
+- **Polls:** tested for who may run one (host, co-host), answer limits, one open poll, one vote each, out-of-range choices, voting after close, and totals with no voter identities. Not tested against a real LiveKit room.
+- **Translations:** key and placeholder parity is enforced by a test; wording is a draft.
+
+### 3.33 Group games, masked rooms and sounds
+- **Group Truth or Dare:** tested for membership, turn order through all four players, skips limited to two, idle take-over, the next player when someone leaves.
+- **Masked rooms:** tested for queue (three need a short wait), made-up names only (no names, refs or ids in any response), outsiders refused, truth answers required and only from the player whose turn it is, report rights, leaving. **Weaker than chat:** answers are readable by the server and by staff on a report; nobody should type anything private there.
+- **Not covered:** moderation load for live masked rooms (needs people), abuse by someone who quits mid-game repeatedly (the idle take-over only softens it).
+- **Sounds:** each loop is checked to be a valid, non-silent, non-clipped WAV of sensible length; how they *sound* has not been judged by a person, and they are simple.
+- **Translations:** scripted; wording not reviewed.
+
+### 3.34 Less polling, safety hardening, money and staff tools
+- **Signals:** tested end to end in the relay (only authorised sockets get a topic, unknown kinds and malformed ids refused, unwatch stops them) and in the app (fast polling until the relay accepts, then a slow safety net, a signal for another room ignored, fallback when refused or absent). The whole path (API write, Redis, relay, socket) was also run once against the real local API, Redis and relay with `realtime/test/signal_e2e.js`: the watch was accepted, a write arrived as a signal, and a blocked pair was refused. Not run across two relay nodes. Large rooms re-fetch for every chat line (limited to one signal per 400 ms per topic); not load-tested.
+- **Leaderboards:** cached ranking shared by everyone; tested that a block takes effect at once and that a member's own rank is theirs, not the cached one's.
+- **Quiz probing, masked-room griefing, check-in alerts:** each has a regression test (cap of 6 changes, 429 on the 7th; cooldown after leaving and after two different reporters; every confirmed contact alerted and cleared, unconfirmed never). The quiz cap makes probing slow, not impossible: someone can still learn a little per day.
+- **Flaky test:** `TestRandomExpiryEndsChatAndNeverRepairs` failed when the running dev server's own expiry job beat the test to the row, because it asserted the count the job returned. It now asserts the state of the match.
+- **Photos, payouts, investor models, staff analytics and search:** integration tests for each, including who may do what (admin only for payouts), double payment, reference reuse, freeing gifts on rejection, no email or birth date in staff search results, and every search audited. Host payouts have not been used with real money; the coin-to-dollar rate is the payer's choice.
+- **Backup drill:** passed (Postgres counts, migrations and spatial index; Mongo counts; 12 media files byte-identical). The first run failed on a real defect in the drill (Mongo restored nothing); fixed and re-run.
+- **Scam scanner in Hindi and Spanish:** word lists written by a model, not checked by native speakers.
+- **Found and fixed in the phone pass:** opening a public page (the invest board, an e-mailed contact-confirm or unsubscribe link) in a fresh browser landed on the login page, because the link was dropped while the session was being checked. Public pages now open as they are. Screens looked at: sign-in, Discover (empty), Hotel (empty), Profile, Edit profile, Earnings, with the new labelled bar. Not looked at at phone size: most other screens with long text or errors.
+- **Also:** the Earnings and Safety screens are in the largest-text-size checks (light and dark); the open chat no longer rebuilds itself every 2 seconds unless a message can burn.
+- **Not done:** an AI-based scam check, SMS alerts, a staff "reported rooms" screen.
+
+### 3.35 Staff tools, AI scam check and text alerts
+- **Appeals and reported rooms:** integration tests for the refusals (wrong password, unknown email, not banned all identical), one open appeal each, staff-only queue with no email in it, lifting writes the normal unban audit entry, upholding keeps the ban, no deciding twice; reported rooms grouped with reporter counts and gone once settled. The appeal form has no CAPTCHA (rate limit by IP only) and cannot tell a real owner from someone who has the password.
+- **AI scam check:** 12 tests of the rule engine (three languages, the classic script scores high, ordinary talk scores zero, only the other person's lines count, money plus pressure scores above either). Go side: only people in the chat may ask, up to 10 lines of 300 characters, control characters refused, nothing stored. **It is a rules engine written by a model, not trained on real scam transcripts; its hit rate and false-alarm rate are unknown.** The Hindi and Spanish phrases have not been reviewed by native speakers.
+- **Text alerts:** tested with a stand-in provider and a stand-in for Twilio's API (request shape and error handling), including: no number before the contact agreed by email, malformed numbers refused, someone else cannot confirm a number, wrong codes and the five-try void, three codes a day, alert and all-clear texts, masked display, removal. **Never run against real Twilio or a real phone.** Cost per text and the legal rules for texting people (consent, sender registration, per country) are the owner's to check.
+- **Not done:** a staff reply to a reporter, appeals for removed posts or videos (only bans), the AI check for group chats' encrypted history beyond what a member shares.
+
 ### 3.8 Platform builds
 Android and iOS release builds were **not produced** on the development machine (Android SDK command-line tools and macOS unavailable). The app was verified by analysis, 71 tests and a full `flutter build web --release` compile (re-run after adding the LiveKit client package). No physical-device run, no TestFlight/Play internal track.
 
@@ -169,10 +288,10 @@ Android and iOS release builds were **not produced** on the development machine 
 | CSAM hash matching tested with a sample image | **BLOCKER**: stub provider only |
 | GDPR erasure endpoint tested | PASS |
 | Admin moderation dashboard functional | PASS (browser-verified; strict CSP; every view/ban audited; Go tests in `staff_dashboard_test.go`) |
-| Load test 10K concurrent users | **NOT DONE** (120-user smoke only) |
+| Load test 10K concurrent users | **PARTIAL**: real-HTTP ramp up to 5,000 virtual users on one laptop (about 400 req/s, 0 server errors, see 3.19); 10,000 needs separate hardware |
 | Docker + K8s deployment working | images built and smoke-tested; K8s manifests + NetworkPolicies written in `ops/k8s` but **not applied to a real cluster** |
-| Monitoring (Prometheus + Grafana) | **PARTIAL**: metrics on a private listener, alert rules and a Grafana dashboard are written (`ops/`); never run against a live Prometheus/Grafana |
-| Error tracking (Sentry) | **NOT DONE** |
+| Monitoring (Prometheus + Grafana) | **DONE locally**: both ran against the real API (`ops/dev/monitoring`); all dashboard queries and alert rules work. Not run in a cluster |
+| Error tracking (Sentry) | **BUILT, not run against a real Sentry**: `SENTRY_DSN`, privacy-scrubbed events (decision 140) |
 | Privacy policy + terms drafted | **DRAFTED** (`docs/legal/`, placeholders + legal review required) |
 | 18+ age gate enforced | PASS (self-declared; see §3.3) |
 | Legal review for target markets | **NOT DONE** |

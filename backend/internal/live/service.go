@@ -9,6 +9,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"connectme/internal/push"
 	"connectme/internal/users"
 	"connectme/internal/wallet"
 
@@ -41,6 +42,36 @@ type Service struct {
 	db       *pgxpool.Pool
 	provider Provider
 	vetter   TextVetter
+	alerts   alertSource
+	notify   push.Notifier
+}
+
+// alertSource says who follows a host (follows.Service satisfies it).
+type alertSource interface {
+	FollowerIDs(ctx context.Context, userID string) ([]string, error)
+}
+
+// SetAlerts makes Start tell a host's followers they went live. Either may be nil.
+func (s *Service) SetAlerts(f alertSource, n push.Notifier) { s.alerts, s.notify = f, n }
+
+// alertFollowers sends one "is live" push per follower. It runs off the
+// request path and never fails the stream.
+func (s *Service) alertFollowers(hostID, roomID string) {
+	if s.alerts == nil || s.notify == nil {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		ids, err := s.alerts.FollowerIDs(ctx, hostID)
+		if err != nil {
+			slog.Warn("live: follower lookup failed", "err", err)
+			return
+		}
+		for _, id := range ids {
+			s.notify.Notify(ctx, id, push.KindLive, roomID)
+		}
+	}()
 }
 
 // SetVetter enables screening of in-stream chat (nil disables it).
@@ -57,6 +88,10 @@ type Room struct {
 	HostName  string    `json:"host_name"`
 	StartedAt time.Time `json:"started_at"`
 	Mine      bool      `json:"mine"`
+	Following bool      `json:"following,omitempty"` // the caller follows the host
+	Topic     string    `json:"topic"`
+	Theme     string    `json:"theme"`
+	Pinned    string    `json:"pinned,omitempty"`
 }
 
 // JoinInfo is what a client needs to connect to the media server.
@@ -65,6 +100,7 @@ type JoinInfo struct {
 	Token      string `json:"token"`
 	RoomName   string `json:"room"`
 	CanPublish bool   `json:"can_publish"`
+	Cohost     bool   `json:"cohost,omitempty"`
 }
 
 // sweep ends rooms that outlived the maximum duration or whose host can no
@@ -102,6 +138,52 @@ func (s *Service) close(id string) {
 
 // Start opens a room for the caller.
 func (s *Service) Start(ctx context.Context, userID, title string) (*Room, *JoinInfo, error) {
+	return s.StartWithTopic(ctx, userID, title, "chat")
+}
+
+// Topics are the categories a stream can be filed under.
+var Topics = []string{"chat", "music", "talent", "gaming", "dating", "wellness", "learning"}
+
+func validTopic(t string) bool {
+	for _, x := range Topics {
+		if x == t {
+			return true
+		}
+	}
+	return false
+}
+
+// StartWithTopic opens a room for the caller under a topic.
+func (s *Service) StartWithTopic(ctx context.Context, userID, title, topic string) (*Room, *JoinInfo, error) {
+	return s.StartThemed(ctx, userID, title, topic, "plain")
+}
+
+// Themes are the looks a room can have.
+var Themes = []string{"plain", "sunset", "neon", "forest", "ocean", "velvet"}
+
+func validTheme(t string) bool {
+	for _, x := range Themes {
+		if x == t {
+			return true
+		}
+	}
+	return false
+}
+
+// StartThemed opens a room with a topic and a look.
+func (s *Service) StartThemed(ctx context.Context, userID, title, topic, theme string) (*Room, *JoinInfo, error) {
+	if theme == "" {
+		theme = "plain"
+	}
+	if !validTheme(theme) {
+		return nil, nil, users.ValidationError{Msg: "unknown theme"}
+	}
+	if topic == "" {
+		topic = "chat"
+	}
+	if !validTopic(topic) {
+		return nil, nil, users.ValidationError{Msg: "unknown topic"}
+	}
 	title = strings.TrimSpace(title)
 	if n := utf8.RuneCountInString(title); n < 3 || n > 80 {
 		return nil, nil, users.ValidationError{Msg: "title must be 3-80 characters"}
@@ -122,12 +204,12 @@ func (s *Service) Start(ctx context.Context, userID, title string) (*Room, *Join
 	var rm Room
 	err = s.db.QueryRow(ctx, `
 		WITH ins AS (
-		  INSERT INTO live_rooms (host_id, title) VALUES ($1,$2)
+		  INSERT INTO live_rooms (host_id, title, topic, theme) VALUES ($1,$2,$3,$4)
 		  ON CONFLICT (host_id) WHERE status='live' DO NOTHING
-		  RETURNING id, host_id, title, created_at)
-		SELECT i.id::text, i.title, p.public_ref::text, p.display_name, i.created_at
-		  FROM ins i JOIN profiles p ON p.user_id=i.host_id`, userID, title).
-		Scan(&rm.ID, &rm.Title, &rm.HostRef, &rm.HostName, &rm.StartedAt)
+		  RETURNING id, host_id, title, topic, theme, created_at)
+		SELECT i.id::text, i.title, p.public_ref::text, COALESCE(NULLIF(p.display_name,''),'Someone'), i.created_at, i.topic, i.theme
+		  FROM ins i JOIN profiles p ON p.user_id=i.host_id`, userID, title, topic, theme).
+		Scan(&rm.ID, &rm.Title, &rm.HostRef, &rm.HostName, &rm.StartedAt, &rm.Topic, &rm.Theme)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil, users.ValidationError{Msg: "you are already live; end that stream first"}
 	}
@@ -135,6 +217,7 @@ func (s *Service) Start(ctx context.Context, userID, title string) (*Room, *Join
 		return nil, nil, err
 	}
 	rm.Mine = true
+	s.alertFollowers(userID, rm.ID)
 	tok, err := s.provider.Token(rm.ID, userID, true, tokenTTL)
 	if err != nil {
 		return nil, nil, err
@@ -145,16 +228,27 @@ func (s *Service) Start(ctx context.Context, userID, title string) (*Room, *Join
 // List returns live rooms the caller may see (no banned hosts, no blocks in
 // either direction).
 func (s *Service) List(ctx context.Context, userID string) ([]Room, error) {
+	return s.ListFiltered(ctx, userID, "", false)
+}
+
+// ListFiltered is List narrowed to a topic and/or to hosts the caller follows.
+func (s *Service) ListFiltered(ctx context.Context, userID, topic string, followingOnly bool) ([]Room, error) {
+	if topic != "" && !validTopic(topic) {
+		return nil, users.ValidationError{Msg: "unknown topic"}
+	}
 	s.sweep(ctx)
 	rows, err := s.db.Query(ctx, `
-		SELECT r.id::text, r.title, p.public_ref::text, p.display_name, r.created_at, r.host_id=$1
+		SELECT r.id::text, r.title, p.public_ref::text, COALESCE(NULLIF(p.display_name,''),'Someone'), r.created_at, r.host_id=$1,
+		       EXISTS (SELECT 1 FROM follows f WHERE f.follower_id=$1 AND f.followee_id=r.host_id), r.topic, r.pinned, r.theme
 		  FROM live_rooms r
 		  JOIN users u ON u.id=r.host_id AND NOT u.is_banned
 		  JOIN profiles p ON p.user_id=r.host_id
 		 WHERE r.status='live'
+		   AND ($2::text = '' OR r.topic = $2)
+		   AND (NOT $3::boolean OR EXISTS (SELECT 1 FROM follows f WHERE f.follower_id=$1 AND f.followee_id=r.host_id))
 		   AND NOT EXISTS (SELECT 1 FROM blocks b WHERE
 		        (b.blocker_id=$1 AND b.blocked_id=r.host_id) OR (b.blocker_id=r.host_id AND b.blocked_id=$1))
-		 ORDER BY r.created_at DESC LIMIT 50`, userID)
+		 ORDER BY EXISTS (SELECT 1 FROM follows f WHERE f.follower_id=$1 AND f.followee_id=r.host_id) DESC, r.created_at DESC LIMIT 50`, userID, topic, followingOnly)
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +256,7 @@ func (s *Service) List(ctx context.Context, userID string) ([]Room, error) {
 	out := []Room{}
 	for rows.Next() {
 		var r Room
-		if err := rows.Scan(&r.ID, &r.Title, &r.HostRef, &r.HostName, &r.StartedAt, &r.Mine); err != nil {
+		if err := rows.Scan(&r.ID, &r.Title, &r.HostRef, &r.HostName, &r.StartedAt, &r.Mine, &r.Following, &r.Topic, &r.Pinned, &r.Theme); err != nil {
 			return nil, err
 		}
 		out = append(out, r)
@@ -205,12 +299,12 @@ func (s *Service) Join(ctx context.Context, userID, roomID string) (*JoinInfo, e
 	if err != nil {
 		return nil, err
 	}
-	publish := hostID == userID
+	publish := hostID == userID || s.isCohost(ctx, roomID, userID)
 	tok, err := s.provider.Token(roomID, userID, publish, tokenTTL)
 	if err != nil {
 		return nil, err
 	}
-	return &JoinInfo{URL: s.provider.URL(), Token: tok, RoomName: roomID, CanPublish: publish}, nil
+	return &JoinInfo{URL: s.provider.URL(), Token: tok, RoomName: roomID, CanPublish: publish, Cohost: publish && hostID != userID}, nil
 }
 
 // End closes a room; only its host (or staff via moderation) may do so.

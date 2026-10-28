@@ -254,6 +254,8 @@ type Report struct {
 	CollectedCents    int    `json:"collected_cents"`       // paid through the app, not refunded
 	OwedToPartner     int    `json:"owed_to_partner_cents"` // collected on completed bookings, minus commission
 	RefundsDue        int    `json:"refunds_due"`           // paid bookings that were cancelled or declined
+	SettledCents      int    `json:"settled_cents"`         // already recorded in a payout
+	UnsettledCents    int    `json:"unsettled_cents"`       // owed and not yet in a payout
 }
 
 // PartnerReport totals what a partner has earned through the platform, for
@@ -271,12 +273,14 @@ func (s *Service) PartnerReport(ctx context.Context, partnerID string) (*Report,
 		  COALESCE((SELECT SUM(b.commission_cents) FROM bookings b WHERE b.partner_id = p.id AND b.status = 'completed'), 0)::int,
 		  COALESCE((SELECT SUM(b.paid_cents) FROM bookings b WHERE b.partner_id = p.id AND b.payment_status = 'paid'), 0)::int,
 		  COALESCE((SELECT SUM(b.paid_cents - COALESCE(b.commission_cents, 0)) FROM bookings b WHERE b.partner_id = p.id AND b.payment_status = 'paid' AND b.status = 'completed'), 0)::int,
-		  COALESCE((SELECT COUNT(*) FROM bookings b WHERE b.partner_id = p.id AND b.payment_status = 'paid' AND b.status IN ('cancelled','declined')), 0)::int
+		  COALESCE((SELECT COUNT(*) FROM bookings b WHERE b.partner_id = p.id AND b.payment_status = 'paid' AND b.status IN ('cancelled','declined')), 0)::int,
+		  COALESCE((SELECT SUM(b.paid_cents - COALESCE(b.commission_cents, 0)) FROM bookings b WHERE b.partner_id = p.id AND b.payment_status = 'paid' AND b.status = 'completed' AND b.payout_id IS NOT NULL), 0)::int
 		  FROM partners p WHERE p.id = $1::uuid`, partnerID).
-		Scan(&r.Partner, &r.CommissionBps, &r.TicketCoins, &r.BookingsCompleted, &r.BookedCents, &r.CommissionCents, &r.CollectedCents, &r.OwedToPartner, &r.RefundsDue)
+		Scan(&r.Partner, &r.CommissionBps, &r.TicketCoins, &r.BookingsCompleted, &r.BookedCents, &r.CommissionCents, &r.CollectedCents, &r.OwedToPartner, &r.RefundsDue, &r.SettledCents)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
 	r.TicketCommission = r.TicketCoins * r.CommissionBps / 10000
+	r.UnsettledCents = r.OwedToPartner - r.SettledCents
 	return &r, err
 }

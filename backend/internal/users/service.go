@@ -47,11 +47,11 @@ func (s *Service) GetMe(ctx context.Context, userID string) (*OwnProfile, error)
 		SELECT p.public_ref::text, p.mode, p.display_name, p.bio, p.intro, p.gender, p.looking_for,
 		       p.mood, p.tags, p.photos, p.location IS NOT NULL, p.invisible,
 		       date_part('year', age(u.date_of_birth))::int, u.is_verified, u.id_verified_at IS NOT NULL,
-		       COALESCE(p.voice_seconds, 0)
+		       COALESCE(p.voice_seconds, 0), p.onboarded_at IS NOT NULL
 		  FROM profiles p JOIN users u ON u.id = p.user_id
 		 WHERE p.user_id = $1`, userID).
 		Scan(&p.Ref, &p.Mode, &name, &bio, &intro, &gender, &lookingFor, &mood,
-			&p.Tags, &photosRaw, &hasLoc, &p.Invisible, &p.Age, &emailOK, &idChecked, &p.VoiceIntroS)
+			&p.Tags, &photosRaw, &hasLoc, &p.Invisible, &p.Age, &emailOK, &idChecked, &p.VoiceIntroS, &p.Onboarded)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -67,7 +67,21 @@ func (s *Service) GetMe(ctx context.Context, userID string) (*OwnProfile, error)
 	if p.Photos, err = parsePhotos(photosRaw); err != nil {
 		return nil, err
 	}
+	if p.Details, err = s.GetDetails(ctx, userID); err != nil {
+		return nil, err
+	}
+	if p.Prompts, err = s.GetPrompts(ctx, userID); err != nil {
+		return nil, err
+	}
+	p.Completeness = ComputeCompleteness(p)
 	return &p, nil
+}
+
+// MarkOnboarded records that the member finished (or skipped) the welcome
+// steps. It is idempotent.
+func (s *Service) MarkOnboarded(ctx context.Context, userID string) error {
+	_, err := s.db.Exec(ctx, `UPDATE profiles SET onboarded_at = COALESCE(onboarded_at, NOW()) WHERE user_id = $1::uuid`, userID)
+	return err
 }
 
 // UpdateProfile applies a partial update after validating every field.
@@ -283,5 +297,6 @@ func (s *Service) card(ctx context.Context, viewerID, where string, arg any, hot
 	}
 	ps := []PublicProfile{Project(row, ResolveVisibility(row.Mode, rel))}
 	s.attachVoice(ctx, ps)
+	s.attachDetails(ctx, viewerID, ps)
 	return &ps[0], nil
 }

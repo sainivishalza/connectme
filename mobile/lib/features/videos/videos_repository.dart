@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../core/models/json.dart';
 import '../../core/network/api_client.dart';
 import '../../core/providers.dart';
+import '../social/social_repository.dart' show PostComment;
 
 class VideoClip {
   VideoClip({
@@ -20,7 +21,15 @@ class VideoClip {
     this.authorRef = '',
     this.authorName = '',
     this.status = 'live',
+    this.comments = 0,
+    this.following = false,
+    this.sound = '',
+    this.soundName = '',
   });
+  final String sound;
+  final String soundName;
+  final int comments;
+  final bool following;
   final String id;
   final String kind; // short | reel
   final String caption;
@@ -49,10 +58,18 @@ class VideoClip {
       authorRef: jsonString(a['ref']),
       authorName: jsonString(a['name']),
       status: jsonString(j['status']).isEmpty ? 'live' : jsonString(j['status']),
+      comments: jsonInt(j['comments']),
+      following: jsonBool(j['following']),
+      sound: jsonString(j['sound']),
+      soundName: jsonString(j['sound_name']),
     );
   }
 
-  VideoClip copyWith({int? likes, bool? liked}) => VideoClip(
+  VideoClip copyWith({int? likes, bool? liked, int? comments}) => VideoClip(
+        comments: comments ?? this.comments,
+        following: following,
+        sound: sound,
+        soundName: soundName,
         id: id,
         kind: kind,
         caption: caption,
@@ -71,8 +88,8 @@ class VideosRepository {
   VideosRepository(this._api);
   final ApiClient _api;
 
-  Future<List<VideoClip>> feed({DateTime? before}) async => listOf(
-        (await _api.getMap('/videos/feed', query: {'before': ?before?.toUtc().toIso8601String()}))['videos'],
+  Future<List<VideoClip>> feed({DateTime? before, bool followingOnly = false}) async => listOf(
+        (await _api.getMap('/videos/feed', query: {'before': ?before?.toUtc().toIso8601String(), if (followingOnly) 'following': '1'}))['videos'],
         VideoClip.fromJson,
       );
 
@@ -96,8 +113,8 @@ class VideosRepository {
     return Uri.base.resolve(base.endsWith('/') ? '${base.substring(0, base.length - 1)}$path' : '$base$path').toString();
   }
 
-  Future<VideoClip> upload(String kind, Uint8List bytes, {String caption = ''}) async {
-    final path = Uri(path: '/videos/', queryParameters: {'kind': kind, if (caption.isNotEmpty) 'caption': caption}).toString();
+  Future<VideoClip> upload(String kind, Uint8List bytes, {String caption = '', String sound = ''}) async {
+    final path = Uri(path: '/videos/', queryParameters: {'kind': kind, if (caption.isNotEmpty) 'caption': caption, if (sound.isNotEmpty) 'sound': sound}).toString();
     final m = await _api.postBytes(path, bytes);
     return VideoClip.fromJson(Map<String, dynamic>.from(m['video'] as Map));
   }
@@ -106,6 +123,13 @@ class VideosRepository {
     final m = await _api.postMap('/videos/$id/like');
     return (liked: jsonBool(m['liked']), likes: jsonInt(m['likes']));
   }
+
+  Future<List<PostComment>> comments(String id) async =>
+      listOf((await _api.getMap('/videos/$id/comments'))['comments'], PostComment.fromJson);
+
+  Future<void> comment(String id, String body) => _api.post('/videos/$id/comments', body: {'body': body});
+  Future<void> deleteComment(String id) => _api.delete('/videos/comments/$id');
+  Future<void> reportComment(String id, String reason) => _api.post('/videos/comments/$id/report', body: {'reason': reason});
 
   Future<void> report(String id, String reason) => _api.post('/videos/$id/report', body: {'reason': reason});
   Future<void> delete(String id) => _api.delete('/videos/$id');

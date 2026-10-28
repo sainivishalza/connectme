@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../shared/widgets/app_snack.dart';
@@ -70,8 +72,9 @@ class _Events extends ConsumerWidget {
                   style: t.textTheme.bodySmall,
                 ),
               ),
+              if (e.joined) TextButton(key: Key('group_${e.id}'), onPressed: () => context.push('/eventgroup/${e.id}'), child: Text(AppLocalizations.of(context)?.sGroup ?? 'Group')),
               e.joined
-                  ? OutlinedButton(key: Key('leave_${e.id}'), onPressed: () => _toggle(context, ref, e), child: const Text('Leave'))
+                  ? OutlinedButton(key: Key('leave_${e.id}'), onPressed: () => _toggle(context, ref, e), child: Text(AppLocalizations.of(context)?.sLeave ?? 'Leave'))
                   : FilledButton(key: Key('join_${e.id}'), onPressed: e.full ? null : () => _toggle(context, ref, e), child: Text(e.full ? 'Full' : (e.priceCoins > 0 ? 'Join for ${e.priceCoins}' : 'Join'))),
             ]),
           ]),
@@ -98,7 +101,7 @@ class _Places extends ConsumerWidget {
           leading: CircleAvatar(child: Icon(switch (p.kind) { 'hotel' => Icons.hotel_outlined, 'restaurant' => Icons.restaurant_outlined, _ => Icons.hiking })),
           title: Text(p.name),
           subtitle: Text([if (p.distance.isNotEmpty) p.distance, if (p.address.isNotEmpty) p.address].join(' · ')),
-          trailing: FilledButton.tonal(key: Key('book_${p.id}'), onPressed: () => _book(c, ref, p), child: const Text('Book')),
+          trailing: FilledButton.tonal(key: Key('book_${p.id}'), onPressed: () => _book(c, ref, p), child: Text(AppLocalizations.of(context)?.sBook ?? 'Book')),
         ),
       ),
     );
@@ -106,7 +109,7 @@ class _Places extends ConsumerWidget {
 
   Future<void> _book(BuildContext context, WidgetRef ref, Partner p) async {
     final made = await showModalBottomSheet<Booking>(
-      context: context,
+      context: context, useRootNavigator: true,
       isScrollControlled: true,
       builder: (_) => _BookSheet(partner: p, repo: ref.read(partnersRepositoryProvider)),
     );
@@ -168,7 +171,7 @@ class _BookSheetState extends State<_BookSheet> {
           const SizedBox(height: 4),
           Text('This is a request. The venue confirms it, and you pay them directly.', style: t.textTheme.bodyMedium),
           const SizedBox(height: 14),
-          Text('When', style: t.textTheme.labelLarge),
+          Text(AppLocalizations.of(context)?.sWhen ?? 'When', style: t.textTheme.labelLarge),
           const SizedBox(height: 6),
           Wrap(spacing: 8, runSpacing: 4, children: [
             for (var d = 0; d < 7; d++)
@@ -197,7 +200,7 @@ class _BookSheetState extends State<_BookSheet> {
           FilledButton(
             key: const Key('booking_send'),
             onPressed: _busy ? null : _send,
-            child: _busy ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Send request'),
+            child: _busy ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : Text(AppLocalizations.of(context)?.sSendRequest ?? 'Send request'),
           ),
         ]),
       ),
@@ -253,7 +256,7 @@ class _Bookings extends ConsumerWidget {
                   onPressed: () async {
                     if (await guarded(c, () => ref.read(partnersRepositoryProvider).cancelBooking(b.id))) ref.invalidate(myBookingsProvider);
                   },
-                  child: const Text('Cancel'),
+                  child: Text(AppLocalizations.of(context)?.sCancel ?? 'Cancel'),
                 )
               : null,
         ),

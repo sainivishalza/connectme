@@ -290,3 +290,36 @@ func (s *Service) notifyOthers(ctx context.Context, senderID, convID string) {
 		s.notifier.Notify(ctx, o, push.KindMessage, convID)
 	}
 }
+
+// Unsend deletes one of the caller's own messages, and its attachment, for
+// everyone. Only the sender can; a message is gone from the server at once,
+// and the other person's app removes its local copy when it next syncs (or
+// immediately, when it receives the sender's "unsend" notice, which is itself
+// an encrypted message the server cannot read).
+func (s *Service) Unsend(ctx context.Context, userID, matchID, messageID string) error {
+	if _, err := s.participant(ctx, userID, matchID); err != nil {
+		return err
+	}
+	oid, err := bson.ObjectIDFromHex(messageID)
+	if err != nil {
+		return ErrNotFound
+	}
+	filter := bson.M{"_id": oid, "match_id": matchID, "sender_id": userID}
+	var doc messageDoc
+	if err := s.messages.FindOne(ctx, filter).Decode(&doc); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return ErrNotFound
+		}
+		return err
+	}
+	if doc.MediaID != "" {
+		if err := s.blobs.Delete(ctx, doc.MediaID); err != nil {
+			return err
+		}
+		if _, err := s.media.DeleteOne(ctx, bson.M{"_id": doc.MediaID}); err != nil {
+			return err
+		}
+	}
+	_, err = s.messages.DeleteOne(ctx, filter)
+	return err
+}

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -18,14 +19,14 @@ class GroupsScreen extends ConsumerWidget {
       length: 3,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Group dates'),
+          title: Text(AppLocalizations.of(context)?.sGroupDates ?? 'Group dates'),
           bottom: const TabBar(tabs: [Tab(text: 'My groups'), Tab(text: 'Invites'), Tab(text: 'Matches')]),
         ),
         floatingActionButton: FloatingActionButton.extended(
           key: const Key('new_group'),
           onPressed: () => context.push('/groups/new'),
           icon: const Icon(Icons.add),
-          label: const Text('New group'),
+          label: Text(AppLocalizations.of(context)?.sNewGroup ?? 'New group'),
         ),
         body: const TabBarView(children: [_MyGroups(), _Invites(), _Matches()]),
       ),

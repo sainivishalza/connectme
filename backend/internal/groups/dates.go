@@ -153,6 +153,9 @@ func (s *Service) CancelDate(ctx context.Context, userID, dateID string) error {
 	if _, err := tx.Exec(ctx, `UPDATE group_dates SET status='cancelled' WHERE id=$1::uuid`, dateID); err != nil {
 		return err
 	}
+	if err := s.refundLogistics(ctx, tx, dateID); err != nil {
+		return err
+	}
 	return tx.Commit(ctx)
 }
 

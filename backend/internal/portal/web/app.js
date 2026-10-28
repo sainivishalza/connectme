@@ -239,11 +239,26 @@ function renderReport(root, partner) {
       h('div', { class: 'stats' },
         cell(money(r.collected_cents), 'Collected through ConnectMe'),
         cell(money(r.commission_cents), `Platform commission (${(r.commission_bps / 100).toFixed(1)}%)`),
-        cell(money(r.owed_to_partner_cents), 'Owed to you (completed, paid bookings)'),
+        cell(money(r.settled_cents), 'Already paid out to you'),
+        cell(money(r.unsettled_cents), 'Waiting to be paid out'),
         cell(r.refunds_due, 'Refunds being settled'),
         cell(r.bookings_completed, 'Completed bookings'),
         cell(r.ticket_coins, 'Ticket coins taken')),
-      h('p', { class: 'note', text: 'Payouts are settled by the ConnectMe team outside this portal.' }));
+      h('p', { class: 'note', text: 'The ConnectMe team sends payouts outside this portal and records each one here.' }));
+    let ps = [];
+    try { ps = (await api(`/partners/manage/partners/${encodeURIComponent(partner.id)}/payouts`)).payouts || []; }
+    catch (e) { panel.append(h('div', { class: 'error', text: e.message })); return; }
+    panel.append(h('h2', { text: 'Payout history' }),
+      ps.length === 0
+        ? h('p', { class: 'note', text: 'No payouts recorded yet.' })
+        : h('table', {},
+            h('tr', {}, ...['Date', 'Amount', 'Bookings', 'Method', 'Reference'].map((t) => h('th', { text: t }))),
+            ...ps.map((p) => h('tr', {},
+              h('td', { text: new Date(p.created_at).toLocaleDateString() }),
+              h('td', { text: money(p.amount_cents) }),
+              h('td', { text: String(p.bookings) }),
+              h('td', { text: p.method.replace('_', ' ') }),
+              h('td', { text: p.reference })))));
   })();
 }
 

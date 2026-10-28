@@ -73,6 +73,67 @@ class Quiz {
       );
 }
 
+/// Turn-based truth or dare, as the signed-in player sees it.
+class TdState {
+  TdState({
+    required this.active,
+    this.round = 0,
+    this.yourTurn = false,
+    this.phase = '',
+    this.kind = '',
+    this.prompt = '',
+    this.skipsLeft = 2,
+    this.canTakeOver = false,
+  });
+  final bool active;
+  final int round;
+  final bool yourTurn;
+  final String phase; // choose | answer
+  final String kind; // truth | dare
+  final String prompt;
+  final int skipsLeft;
+  final bool canTakeOver;
+
+  factory TdState.fromJson(Map<String, dynamic> j) => TdState(
+        active: jsonBool(j['active']),
+        round: jsonInt(j['round']),
+        yourTurn: jsonBool(j['your_turn']),
+        phase: jsonString(j['phase']),
+        kind: jsonString(j['kind']),
+        prompt: jsonString(j['prompt']),
+        skipsLeft: j['skips_left'] is num ? (j['skips_left'] as num).toInt() : 2,
+        canTakeOver: jsonBool(j['can_take_over']),
+      );
+}
+
+/// One round of group "Would you rather". Totals are anonymous.
+class WyrState {
+  WyrState({required this.active, this.pollId = '', this.a = '', this.b = '', this.closed = false, this.members = 0, this.voted = 0, this.myChoice = '', this.countA, this.countB});
+  final bool active;
+  final String pollId;
+  final String a;
+  final String b;
+  final bool closed;
+  final int members;
+  final int voted;
+  final String myChoice; // '' = not voted
+  final int? countA; // shown once you have voted or the round is over
+  final int? countB;
+
+  factory WyrState.fromJson(Map<String, dynamic> j) => WyrState(
+        active: jsonBool(j['active']),
+        pollId: jsonString(j['poll_id']),
+        a: jsonString(j['a']),
+        b: jsonString(j['b']),
+        closed: jsonBool(j['closed']),
+        members: jsonInt(j['members']),
+        voted: jsonInt(j['voted']),
+        myChoice: jsonString(j['my_choice']),
+        countA: j['count_a'] is num ? (j['count_a'] as num).toInt() : null,
+        countB: j['count_b'] is num ? (j['count_b'] as num).toInt() : null,
+      );
+}
+
 class GamesRepository {
   GamesRepository(this._api);
   final ApiClient _api;
@@ -89,6 +150,19 @@ class GamesRepository {
     final q = (await _api.getMap('/games/quiz/match/$matchId'))['quiz'];
     return q is Map ? Quiz.fromJson(Map<String, dynamic>.from(q)) : null;
   }
+
+  Future<WyrState> wyrState(String groupMatchId) async => WyrState.fromJson(await _api.getMap('/games/group/$groupMatchId'));
+  Future<WyrState> wyrStart(String groupMatchId) async => WyrState.fromJson(await _api.postMap('/games/group/$groupMatchId/start'));
+  Future<WyrState> wyrVote(String groupMatchId, String pollId, String choice) async =>
+      WyrState.fromJson(await _api.postMap('/games/group/$groupMatchId/vote', body: {'poll_id': pollId, 'choice': choice}));
+
+  Future<TdState> tdState(String matchId) async => TdState.fromJson(await _api.getMap('/games/td/$matchId'));
+  Future<TdState> tdStart(String matchId) async => TdState.fromJson(await _api.postMap('/games/td/$matchId/start'));
+  Future<TdState> tdPick(String matchId, String kind) async => TdState.fromJson(await _api.postMap('/games/td/$matchId/pick', body: {'kind': kind}));
+  Future<TdState> tdDone(String matchId) async => TdState.fromJson(await _api.postMap('/games/td/$matchId/done'));
+  Future<TdState> tdSkip(String matchId) async => TdState.fromJson(await _api.postMap('/games/td/$matchId/skip'));
+  Future<TdState> tdTakeOver(String matchId) async => TdState.fromJson(await _api.postMap('/games/td/$matchId/take-over'));
+  Future<void> tdEnd(String matchId) => _api.delete('/games/td/$matchId');
 
   Future<Quiz> answer(String quizId, int question, int choice) async =>
       Quiz.fromJson(await _api.postMap('/games/quiz/$quizId/answer', body: {'question': question, 'choice': choice}));

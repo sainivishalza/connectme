@@ -167,7 +167,7 @@ void main() {
           ]
         }));
     expect(find.text('Friday chat'), findsOneWidget);
-    expect(find.text('Ana'), findsOneWidget);
+    expect(find.text('Ana - Chat'), findsOneWidget);
 
     await pump(t, const LiveListScreen(), (o) async => Reply(200, {'rooms': []}));
     expect(find.text('Nobody is live'), findsOneWidget);

@@ -303,3 +303,47 @@ func TestVideoReportsAndStaffRemoval(t *testing.T) {
 		t.Errorf("audit row: %d %v", n, err)
 	}
 }
+
+func TestShortVideosCanCarryABuiltInSound(t *testing.T) {
+	e := setup(t)
+	owner, viewer := e.user("Sound Owner"), e.user("Sound Viewer")
+	post := func(uid, kind, sound string) (int, vid) {
+		c, b := e.raw("POST", "/videos/?kind="+kind+"&caption=hi&sound="+sound, fakeMP4(4, 400), uid)
+		var r struct {
+			Video vid `json:"video"`
+		}
+		if c == 201 {
+			decodeInto(e.t, b, &r)
+		}
+		return c, r.Video
+	}
+	if c, _ := post(owner, "short", "not-a-sound"); c != 422 {
+		t.Errorf("unknown sound: %d", c)
+	}
+	if c, _ := post(owner, "reel", "sunrise"); c != 422 {
+		t.Errorf("a reel cannot carry a sound: %d", c)
+	}
+	c, v := post(owner, "short", "sunrise")
+	if c != 201 {
+		t.Fatalf("upload: %d", c)
+	}
+	_, feed := e.call("GET", "/videos/feed", nil, viewer)
+	if !strings.Contains(string(feed), `"sound":"sunrise"`) || !strings.Contains(string(feed), `"sound_name":"Sunrise"`) || !strings.Contains(string(feed), v.ID) {
+		t.Errorf("feed lacks the sound: %s", feed)
+	}
+	// The library: a list and a real WAV file, members only.
+	if c, _ := e.call("GET", "/sounds/", nil, ""); c != 401 {
+		t.Errorf("signed out: %d", c)
+	}
+	_, list := e.call("GET", "/sounds/", nil, viewer)
+	if !strings.Contains(string(list), `"id":"sunrise"`) || !strings.Contains(string(list), `"seconds"`) {
+		t.Errorf("list: %s", list)
+	}
+	c2, wav := e.call("GET", "/sounds/sunrise", nil, viewer)
+	if c2 != 200 || len(wav) < 10000 || string(wav[:4]) != "RIFF" {
+		t.Errorf("wav: %d %d bytes", c2, len(wav))
+	}
+	if c, _ := e.call("GET", "/sounds/none", nil, viewer); c != 404 {
+		t.Errorf("unknown file: %d", c)
+	}
+}

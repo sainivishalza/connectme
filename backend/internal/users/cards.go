@@ -105,6 +105,7 @@ func (s *Service) Cards(ctx context.Context, viewerID string, ownerIDs []string,
 		ps[i] = Project(r.row, ResolveVisibility(r.row.Mode, rel))
 	}
 	s.attachVoice(ctx, ps)
+	s.attachDetails(ctx, viewerID, ps)
 	for i, r := range recs {
 		out[r.owner] = ps[i]
 	}

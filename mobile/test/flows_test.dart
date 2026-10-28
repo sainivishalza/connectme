@@ -129,7 +129,8 @@ void main() {
 
     testWidgets('pass sends a pass and an anonymous card shows no name', (t) async {
       final (_, adapter) = await pumpDeck(t, nearby([person('x', '', anon: true)], (o) async => Reply(200, {'matched': false})));
-      expect(find.text('Anonymous'), findsNWidgets(2));
+      expect(find.text('Anonymous'), findsOneWidget);
+      expect(find.text('Anonymous until you both reveal'), findsOneWidget);
       await t.tap(find.byKey(const Key('pass')));
       await t.pumpAndSettle();
       expect(adapter.requests.last.data, {'target_ref': 'x', 'action': 'pass'});

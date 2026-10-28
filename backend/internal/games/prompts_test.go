@@ -75,3 +75,28 @@ func TestPromptKinds(t *testing.T) {
 		t.Error("unknown kind accepted")
 	}
 }
+
+func TestWouldYouRatherFollowsTheContentRules(t *testing.T) {
+	var all []string
+	seen := map[string]bool{}
+	for _, p := range wouldYouRather {
+		all = append(all, p.A, p.B)
+		key := strings.ToLower(p.A + "|" + p.B)
+		if seen[key] {
+			t.Errorf("duplicate pair %q", key)
+		}
+		seen[key] = true
+		if strings.EqualFold(p.A, p.B) {
+			t.Errorf("both sides are the same: %q", p.A)
+		}
+	}
+	noBannedWords(t, "would you rather", all)
+	for _, s := range all {
+		if n := len([]rune(s)); n < 8 || n > 80 {
+			t.Errorf("%q has an odd length (%d)", s, n)
+		}
+	}
+	if len(wouldYouRather) <= wyrNoRepeatOf {
+		t.Errorf("the bank (%d) must be larger than the no-repeat window (%d)", len(wouldYouRather), wyrNoRepeatOf)
+	}
+}

@@ -117,13 +117,41 @@ func (s *Service) Matches(ctx context.Context, userID string, limit, offset int)
 	if err != nil {
 		return nil, err
 	}
+	steps := map[string]VoiceStep{}
+	anon := map[string]string{}
+	for _, r := range recs {
+		if c, ok := cards[r.other]; ok && c.Anonymous {
+			anon[r.view.MatchID] = r.other
+		}
+	}
+	timers := map[string]RevealTimer{}
+	if len(anon) > 0 {
+		if st, err := s.voiceSteps(ctx, userID, anon); err == nil {
+			steps = st
+		}
+		if rt, err := s.revealTimers(ctx, userID, anon); err == nil {
+			timers = rt
+		}
+	}
 	out := []MatchView{}
 	for _, r := range recs {
+		if rt, ok := timers[r.view.MatchID]; ok {
+			rt := rt
+			r.view.RevealTimer = &rt
+		}
+		if st, ok := steps[r.view.MatchID]; ok {
+			st := st
+			r.view.Voice = &st
+		}
 		card, ok := cards[r.other]
 		if !ok {
 			continue // blocked, banned or unverified counterpart
 		}
 		r.view.Profile = &card
+		if !card.Anonymous {
+			r.view.TheirComment = s.visibleComment(ctx, userID, r.other)
+			r.view.MyComment = s.ownComment(ctx, userID, r.other)
+		}
 		out = append(out, r.view)
 	}
 	return out, nil
@@ -198,6 +226,9 @@ type LikesYou struct {
 	Count    int                   `json:"count"`
 	Locked   bool                  `json:"locked"`
 	Profiles []users.PublicProfile `json:"profiles,omitempty"`
+	// Comments maps a profile ref to the note that person sent with their like
+	// (only for people visible in full).
+	Comments map[string]string `json:"comments,omitempty"`
 }
 
 func (s *Service) LikesYou(ctx context.Context, userID string, limit int) (*LikesYou, error) {
@@ -243,6 +274,60 @@ func (s *Service) LikesYou(ctx context.Context, userID string, limit int) (*Like
 			return nil, err
 		}
 		out.Profiles = append(out.Profiles, *card)
+		if !card.Anonymous {
+			if c := s.visibleComment(ctx, userID, id); c != "" {
+				if out.Comments == nil {
+					out.Comments = map[string]string{}
+				}
+				out.Comments[card.Ref] = c
+			}
+		}
 	}
 	return out, nil
+}
+
+// rewindWindow is how long after a pass it can still be undone.
+const rewindWindow = 10 * time.Minute
+
+// Rewind undoes the caller's most recent swipe if it was a pass made in the
+// last ten minutes, so that person can appear again. It is a Gold perk. Likes
+// are not rewound: a like may already have created a match or told the other
+// person, and unsending it would make both worse.
+func (s *Service) Rewind(ctx context.Context, userID string) error {
+	tier, err := entitlements.TierOf(ctx, s.db, userID)
+	if err != nil {
+		return err
+	}
+	if !entitlements.PerksFor(tier).Rewind {
+		return ErrNeedsGold
+	}
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	var target, action string
+	var at time.Time
+	err = tx.QueryRow(ctx, `SELECT target_id::text, action, created_at FROM swipes WHERE actor_id=$1::uuid ORDER BY created_at DESC LIMIT 1 FOR UPDATE`, userID).
+		Scan(&target, &action, &at)
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && (Action(action) != ActionPass || time.Since(at) > rewindWindow)) {
+		return users.ValidationError{Msg: "there is no recent pass to undo"}
+	}
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM swipes WHERE actor_id=$1::uuid AND target_id=$2::uuid`, userID, target); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// ownComment is the note the caller sent with their own like, shown back to
+// them in the match so both sides see how the conversation began.
+func (s *Service) ownComment(ctx context.Context, me, other string) string {
+	var c *string
+	if s.db.QueryRow(ctx, `SELECT comment FROM swipes WHERE actor_id=$1::uuid AND target_id=$2::uuid`, me, other).Scan(&c) != nil || c == nil {
+		return ""
+	}
+	return *c
 }

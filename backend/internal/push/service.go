@@ -23,6 +23,10 @@ const (
 	KindMatch   Kind = "match"
 	KindCall    Kind = "call"
 	KindBooking Kind = "booking"
+	KindLive    Kind = "live"
+	KindComment Kind = "comment"
+	KindSafety  Kind = "safety"
+	KindReport  Kind = "report"
 )
 
 const (
@@ -108,6 +112,14 @@ func content(kind Kind) Message {
 		return Message{Title: "ConnectMe", Body: "Incoming call", HighPrio: true, TTLSeconds: 45}
 	case KindBooking:
 		return Message{Title: "ConnectMe", Body: "Your booking was updated", TTLSeconds: 24 * 3600}
+	case KindLive:
+		return Message{Title: "ConnectMe", Body: "Someone you follow is live", TTLSeconds: 1800}
+	case KindComment:
+		return Message{Title: "ConnectMe", Body: "Someone replied to your post", TTLSeconds: 24 * 3600}
+	case KindReport:
+		return Message{Title: "ConnectMe", Body: "Your report was reviewed", TTLSeconds: 24 * 3600}
+	case KindSafety:
+		return Message{Title: "ConnectMe", Body: "Time to check in", HighPrio: true, TTLSeconds: 1800}
 	}
 	return Message{}
 }
@@ -120,6 +132,10 @@ func dedupe(kind Kind) time.Duration {
 		return 5 * time.Minute
 	case KindCall:
 		return 20 * time.Second
+	case KindLive:
+		return 30 * time.Minute
+	case KindComment:
+		return 10 * time.Minute
 	}
 	return time.Minute
 }
@@ -131,6 +147,12 @@ func (s *Service) deliver(ctx context.Context, j job) {
 	if msg.Body == "" {
 		return
 	}
+	if j.kind != KindCall && j.kind != KindSafety { // a safety reminder is never silenced
+		if p, err := s.Prefs(ctx, j.user); err == nil && p.Quiet.Active(time.Now()) {
+			metrics.Event("push_quiet")
+			return
+		}
+	}
 	rows, err := s.db.Query(ctx, `
 		SELECT d.id::text, d.platform, d.token
 		  FROM push_devices d
@@ -138,7 +160,7 @@ func (s *Service) deliver(ctx context.Context, j job) {
 		  LEFT JOIN push_prefs p ON p.user_id = d.user_id
 		 WHERE d.user_id = $1::uuid
 		   AND COALESCE(CASE $2::text WHEN 'message' THEN p.messages WHEN 'match' THEN p.matches
-		                              WHEN 'call' THEN p.calls WHEN 'booking' THEN p.bookings END, TRUE)`, j.user, string(j.kind))
+		                              WHEN 'call' THEN p.calls WHEN 'booking' THEN p.bookings WHEN 'live' THEN p.live WHEN 'comment' THEN p.comments END, TRUE)`, j.user, string(j.kind))
 	if err != nil {
 		slog.Warn("push: device lookup failed", "err", err)
 		return
@@ -227,28 +249,58 @@ func (s *Service) UnregisterAll(ctx context.Context, userID string) error {
 	return err
 }
 
+// Quiet is a daily window in which only incoming calls get through.
+type Quiet struct {
+	On    bool `json:"on"`
+	Start int  `json:"start"`  // minutes after local midnight
+	End   int  `json:"end"`    // minutes after local midnight
+	TZMin int  `json:"tz_min"` // local time minus UTC, in minutes
+}
+
+// Active reports whether now falls inside the window.
+func (q Quiet) Active(now time.Time) bool {
+	if !q.On {
+		return false
+	}
+	local := now.UTC().Hour()*60 + now.UTC().Minute() + q.TZMin
+	m := ((local % 1440) + 1440) % 1440
+	if q.Start <= q.End {
+		return m >= q.Start && m < q.End
+	}
+	return m >= q.Start || m < q.End
+}
+
 type Prefs struct {
-	Messages bool `json:"messages"`
-	Matches  bool `json:"matches"`
-	Calls    bool `json:"calls"`
-	Bookings bool `json:"bookings"`
+	Quiet    Quiet `json:"quiet"`
+	Messages bool  `json:"messages"`
+	Matches  bool  `json:"matches"`
+	Calls    bool  `json:"calls"`
+	Bookings bool  `json:"bookings"`
+	Live     bool  `json:"live"`
+	Comments bool  `json:"comments"`
 }
 
 func (s *Service) Prefs(ctx context.Context, userID string) (Prefs, error) {
-	p := Prefs{true, true, true, true}
-	err := s.db.QueryRow(ctx, `SELECT messages, matches, calls, bookings FROM push_prefs WHERE user_id=$1::uuid`, userID).
-		Scan(&p.Messages, &p.Matches, &p.Calls, &p.Bookings)
+	p := Prefs{Quiet: Quiet{Start: 1320, End: 480}, Messages: true, Matches: true, Calls: true, Bookings: true, Live: true, Comments: true}
+	err := s.db.QueryRow(ctx, `SELECT messages, matches, calls, bookings, live, comments, quiet_on, quiet_start, quiet_end, tz_min FROM push_prefs WHERE user_id=$1::uuid`, userID).
+		Scan(&p.Messages, &p.Matches, &p.Calls, &p.Bookings, &p.Live, &p.Comments, &p.Quiet.On, &p.Quiet.Start, &p.Quiet.End, &p.Quiet.TZMin)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return p, err
 	}
 	return p, nil
 }
 
+var ErrBadQuiet = users.ValidationError{Msg: "quiet hours must be times of day and a valid time zone offset"}
+
 func (s *Service) SetPrefs(ctx context.Context, userID string, p Prefs) error {
+	if q := p.Quiet; q.Start < 0 || q.Start > 1439 || q.End < 0 || q.End > 1439 || q.TZMin < -840 || q.TZMin > 840 {
+		return ErrBadQuiet
+	}
 	_, err := s.db.Exec(ctx, `
-		INSERT INTO push_prefs (user_id, messages, matches, calls, bookings) VALUES ($1::uuid,$2,$3,$4,$5)
-		ON CONFLICT (user_id) DO UPDATE SET messages=$2, matches=$3, calls=$4, bookings=$5, updated_at=NOW()`,
-		userID, p.Messages, p.Matches, p.Calls, p.Bookings)
+		INSERT INTO push_prefs (user_id, messages, matches, calls, bookings, live, comments, quiet_on, quiet_start, quiet_end, tz_min) VALUES ($1::uuid,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+		ON CONFLICT (user_id) DO UPDATE SET messages=$2, matches=$3, calls=$4, bookings=$5, live=$6, comments=$7,
+		  quiet_on=$8, quiet_start=$9, quiet_end=$10, tz_min=$11, updated_at=NOW()`,
+		userID, p.Messages, p.Matches, p.Calls, p.Bookings, p.Live, p.Comments, p.Quiet.On, p.Quiet.Start, p.Quiet.End, p.Quiet.TZMin)
 	return err
 }
 

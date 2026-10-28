@@ -178,4 +178,26 @@ void main() {
     expect(calls, 0);
     expect(fake.prompts, 0);
   });
+
+  testWidgets('quiet hours: switch on, times shown, saved with the phone time zone offset', (t) async {
+    t.view.physicalSize = const Size(800, 2200);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    final log = <String>[];
+    Object? sent;
+    final a = await pump(t, (o) async {
+      if (o.path == '/push/prefs' && o.method == 'PUT') sent = o.data;
+      return api(log: log, prefs: {'messages': true, 'quiet': {'on': false, 'start': 1320, 'end': 480}})(o);
+    }, const NotificationsScreen());
+    expect(find.byKey(const Key('quiet_start')), findsNothing);
+    await t.tap(find.byKey(const Key('pref_quiet')));
+    await t.pumpAndSettle();
+    expect(find.text('22:00'), findsOneWidget);
+    expect(find.text('08:00'), findsOneWidget);
+    final quiet = (sent! as Map)['quiet'] as Map;
+    expect(quiet['on'], true);
+    expect(quiet['start'], 1320);
+    expect(quiet['tz_min'], DateTime.now().timeZoneOffset.inMinutes);
+    expect(a.requests.where((r) => r.method == 'PUT').length, 1);
+  });
 }

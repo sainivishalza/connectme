@@ -65,7 +65,7 @@ type HTTPSuggester struct {
 }
 
 func NewHTTPSuggester(baseURL, key string) *HTTPSuggester {
-	return &HTTPSuggester{BaseURL: baseURL, Key: key, Client: &http.Client{Timeout: 3 * time.Second}, Fallback: FallbackSuggester{}}
+	return &HTTPSuggester{BaseURL: baseURL, Key: key, Client: &http.Client{Timeout: 12 * time.Second}, Fallback: FallbackSuggester{}}
 }
 
 func (h *HTTPSuggester) Suggest(ctx context.Context, in SuggestInput) (Suggestions, error) {
@@ -88,7 +88,12 @@ func (h *HTTPSuggester) Suggest(ctx context.Context, in SuggestInput) (Suggestio
 		len(out.Venues)+len(out.Icebreakers) == 0 {
 		return h.Fallback.Suggest(ctx, in)
 	}
-	out.Source = "ai"
+	if out.Source != "llm" {
+		out.Source = "ai" // never trust the service to name its own source freely
+	}
+	if len(out.Plan) > 5 {
+		out.Plan = out.Plan[:5]
+	}
 	if len(out.Venues) > 5 {
 		out.Venues = out.Venues[:5]
 	}

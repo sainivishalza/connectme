@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -66,7 +67,7 @@ class _CommunitiesScreenState extends ConsumerState<CommunitiesScreen> {
 
   Future<void> _create() async {
     final made = await showModalBottomSheet<Community>(
-      context: context,
+      context: context, useRootNavigator: true,
       isScrollControlled: true,
       builder: (_) => _CreateSheet(repo: _repo),
     );
@@ -89,7 +90,7 @@ class _CommunitiesScreenState extends ConsumerState<CommunitiesScreen> {
               icon: Icons.my_location,
               title: 'Share your location first',
               message: e.message,
-              action: OutlinedButton(onPressed: () => context.push('/profile/edit'), child: const Text('Update my location')),
+              action: OutlinedButton(onPressed: () => context.push('/profile/edit'), child: Text(AppLocalizations.of(context)?.sUpdateMyLocation ?? 'Update my location')),
             )
           : ErrorView(error: e!, onRetry: () {
               setState(() => _loading = true);
@@ -105,7 +106,7 @@ class _CommunitiesScreenState extends ConsumerState<CommunitiesScreen> {
               icon: Icons.groups_2_outlined,
               title: 'No groups near you yet',
               message: 'Start one for something you enjoy and people around you can join.',
-              action: FilledButton(onPressed: _create, child: const Text('Start a group')),
+              action: FilledButton(onPressed: _create, child: Text(AppLocalizations.of(context)?.sStartAGroup ?? 'Start a group')),
             ),
           ),
         ]),
@@ -158,7 +159,7 @@ class _CommunitiesScreenState extends ConsumerState<CommunitiesScreen> {
                               key: Key('join_${g.id}'),
                               onPressed: () => _join(g),
                               style: FilledButton.styleFrom(minimumSize: const Size(0, 40)),
-                              child: const Text('Join'),
+                              child: Text(AppLocalizations.of(context)?.sJoin ?? 'Join'),
                             ),
                     ],
                   ),
@@ -170,12 +171,12 @@ class _CommunitiesScreenState extends ConsumerState<CommunitiesScreen> {
       );
     }
     return Scaffold(
-      appBar: AppBar(title: const Text('Nearby groups')),
+      appBar: AppBar(title: Text(AppLocalizations.of(context)?.sNearbyGroups ?? 'Nearby groups')),
       floatingActionButton: FloatingActionButton.extended(
         key: const Key('new_community'),
         onPressed: _create,
         icon: const Icon(Icons.add),
-        label: const Text('Start a group'),
+        label: Text(AppLocalizations.of(context)?.sStartAGroup ?? 'Start a group'),
       ),
       body: body,
     );
@@ -224,7 +225,7 @@ class _CreateSheetState extends State<_CreateSheet> {
       child: SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(20, 4, 20, 20 + MediaQuery.viewInsetsOf(context).bottom),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text('Start a group', style: t.textTheme.headlineSmall),
+          Text(AppLocalizations.of(context)?.sStartAGroup ?? 'Start a group', style: t.textTheme.headlineSmall),
           const SizedBox(height: 6),
           Text('People within about 25 km can find and join it. You can post to it and remove posts you do not want.', style: t.textTheme.bodyMedium),
           const SizedBox(height: 14),
@@ -237,7 +238,7 @@ class _CreateSheetState extends State<_CreateSheet> {
           FilledButton(
             key: const Key('community_create'),
             onPressed: _busy ? null : _make,
-            child: _busy ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Create group'),
+            child: _busy ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : Text(AppLocalizations.of(context)?.sCreateGroup ?? 'Create group'),
           ),
         ]),
       ),

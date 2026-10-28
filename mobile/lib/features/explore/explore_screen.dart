@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../l10n/app_localizations.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/theme/tokens.dart';
@@ -15,6 +16,7 @@ class ExploreScreen extends StatelessWidget {
     _Tile('videos', 'Short videos', 'Swipe through clips from people nearby in Open mode.', Icons.smart_display_outlined, '/videos', 'open'),
     _Tile('audio', 'Audio rooms', 'Listen in, or raise a hand and join the conversation.', Icons.graphic_eq, '/audio', 'open'),
     _Tile('random', 'Random chat', 'Talk to someone new, anonymously.', Icons.shuffle, '/random', 'incognito'),
+    _Tile('masked-room', 'Masked room', 'Three to five strangers, made-up names, truth or dare.', Icons.groups_2_outlined, '/masked-room', 'incognito'),
     _Tile('masked', 'Masked Truth', 'Anonymous truth or dare with a stranger.', Icons.theater_comedy_outlined, '/masked', 'incognito'),
     _Tile('forums', 'Forums', 'Dating advice, travel tips and city boards.', Icons.forum_outlined, '/forums', 'open'),
     _Tile('events', 'Events and places', 'Hotel mixers, concerts, and venues you can book.', Icons.celebration_outlined, '/events', 'hotel'),
@@ -25,7 +27,7 @@ class ExploreScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Explore')),
+      appBar: AppBar(title: Text(AppLocalizations.of(context)?.sExplore ?? 'Explore')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
         children: [

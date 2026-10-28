@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/validators.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/app_snack.dart';
 import '../../../shared/widgets/brand_hero.dart';
@@ -43,6 +44,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     return Scaffold(
       body: LightWash(
         child: SafeArea(
@@ -63,7 +65,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         controller: _email,
                         keyboardType: TextInputType.emailAddress,
                         autofillHints: const [AutofillHints.email],
-                        decoration: const InputDecoration(labelText: 'Email'),
+                        decoration: InputDecoration(labelText: l?.loginEmail ?? 'Email'),
                         validator: Validators.email,
                       ),
                       const SizedBox(height: 16),
@@ -73,7 +75,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         obscureText: _hide,
                         autofillHints: const [AutofillHints.password],
                         decoration: InputDecoration(
-                          labelText: 'Password',
+                          labelText: l?.loginPassword ?? 'Password',
                           suffixIcon: IconButton(
                             icon: Icon(
                               _hide ? Icons.visibility : Icons.visibility_off,
@@ -87,18 +89,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       const SizedBox(height: 24),
                       AppButton(
                         key: const Key('login'),
-                        label: 'Sign in',
+                        label: l?.loginSignIn ?? 'Sign in',
                         busy: _busy,
                         onPressed: _submit,
                       ),
                       const SizedBox(height: 8),
                       TextButton(
                         onPressed: () => context.go('/forgot'),
-                        child: const Text('Forgot password?'),
+                        child: Text(l?.loginForgot ?? 'Forgot password?'),
                       ),
                       TextButton(
                         onPressed: () => context.go('/register'),
-                        child: const Text('Create an account'),
+                        child: Text(l?.loginCreate ?? 'Create an account'),
+                      ),
+                      TextButton(
+                        key: const Key('appeal_link'),
+                        onPressed: () => context.push('/appeal'),
+                        child: const Text('Banned? Appeal'),
                       ),
                     ],
                   ),

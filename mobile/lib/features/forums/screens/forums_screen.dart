@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -19,7 +20,7 @@ class ForumsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final boards = ref.watch(forumBoardsProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Forums')),
+      appBar: AppBar(title: Text(AppLocalizations.of(context)?.sForums ?? 'Forums')),
       body: AsyncListView<Board>(
         value: boards,
         onRefresh: () async => ref.refresh(forumBoardsProvider.future),

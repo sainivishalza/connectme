@@ -36,6 +36,9 @@ type Config struct {
 	CheckoutSuccessURL  string
 	CheckoutCancelURL   string
 	SMTPHost            string // empty = emails are only logged (development)
+	TwilioAccountSID    string // with TWILIO_AUTH_TOKEN and TWILIO_FROM: text alerts to trusted contacts
+	TwilioAuthToken     string
+	TwilioFrom          string
 	SMTPPort            int
 	SMTPUsername        string
 	SMTPPassword        string
@@ -52,13 +55,22 @@ type Config struct {
 	FCMProjectID        string
 	FirebaseCredentials string // path to a service-account JSON key
 	EnableVideo         bool   // short videos and profile reels
+	AppURL              string // where links in emails open (the web app)
+	EnableInvestors     bool   // public ownership board and pledges (needs legal sign-off before production)
+	InvestorOwnerName   string // shown as the 51% holder
+	InvestorModel       string // "prorata" (default) or "fixed"
+	InvestorPriceUSD    string // dollars for 1% (default 1000)
+	InvestorPaymentNote string // how a pledger sends the money
 	VideoScanner        string // stub | http; production needs http
 	VideoScannerURL     string
 	VideoScannerKey     string
 	LiveKitURL          string // empty disables live streaming
 	LiveKitAPIKey       string
 	LiveKitAPISecret    string
-	MetricsAddr         string   // private listener for /metrics; empty disables
+	MetricsAddr         string // private listener for /metrics; empty disables
+	SentryDSN           string // optional Sentry-compatible DSN; empty disables error reporting
+	GIFProvider         string // builtin | tenor | none
+	TenorAPIKey         string
 	TrustedProxies      []string // CIDRs/IPs of our load balancers (X-Forwarded-For is honoured only from these)
 }
 
@@ -86,7 +98,13 @@ func Load() (Config, error) {
 		AIServiceKey:        os.Getenv("AI_SERVICE_KEY"),
 		CSAMProvider:        get("CSAM_PROVIDER", "stub"),
 		MetricsAddr:         get("METRICS_ADDR", "127.0.0.1:9464"),
+		SentryDSN:           os.Getenv("SENTRY_DSN"),
+		GIFProvider:         get("GIF_PROVIDER", "builtin"),
+		TenorAPIKey:         os.Getenv("TENOR_API_KEY"),
 		SMTPHost:            os.Getenv("SMTP_HOST"),
+		TwilioAccountSID:    os.Getenv("TWILIO_ACCOUNT_SID"),
+		TwilioAuthToken:     os.Getenv("TWILIO_AUTH_TOKEN"),
+		TwilioFrom:          os.Getenv("TWILIO_FROM"),
 		SMTPPort:            getInt("SMTP_PORT", 587),
 		SMTPUsername:        os.Getenv("SMTP_USERNAME"),
 		SMTPPassword:        os.Getenv("SMTP_PASSWORD"),
@@ -103,6 +121,12 @@ func Load() (Config, error) {
 		FCMProjectID:        os.Getenv("FCM_PROJECT_ID"),
 		FirebaseCredentials: os.Getenv("FIREBASE_CREDENTIALS"),
 		EnableVideo:         os.Getenv("ENABLE_VIDEO") == "true",
+		EnableInvestors:     os.Getenv("ENABLE_INVESTORS") == "true",
+		AppURL:              get("APP_URL", "http://localhost:8081"),
+		InvestorOwnerName:   get("INVESTOR_OWNER_NAME", "Vishal Saini"),
+		InvestorModel:       get("INVESTOR_MODEL", "prorata"),
+		InvestorPriceUSD:    get("INVESTOR_PRICE_PER_PERCENT", "1000"),
+		InvestorPaymentNote: os.Getenv("INVESTOR_PAYMENT_NOTE"),
 		VideoScanner:        get("VIDEO_SCANNER", "stub"),
 		VideoScannerURL:     os.Getenv("VIDEO_SCANNER_URL"),
 		VideoScannerKey:     os.Getenv("VIDEO_SCANNER_KEY"),

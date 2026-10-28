@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -69,7 +70,7 @@ class _BoardScreenState extends ConsumerState<BoardScreen> {
 
   Future<void> _start() async {
     final made = await showModalBottomSheet<ForumThread>(
-      context: context,
+      context: context, useRootNavigator: true,
       isScrollControlled: true,
       builder: (_) => _NewThreadSheet(repo: _repo, slug: widget.board.slug),
     );
@@ -95,7 +96,7 @@ class _BoardScreenState extends ConsumerState<BoardScreen> {
         icon: Icons.forum_outlined,
         title: 'Nothing here yet',
         message: 'Start the first conversation on this board.',
-        action: FilledButton(onPressed: _start, child: const Text('Start a thread')),
+        action: FilledButton(onPressed: _start, child: Text(AppLocalizations.of(context)?.sStartAThread ?? 'Start a thread')),
       );
     } else {
       body = NotificationListener<ScrollNotification>(
@@ -130,7 +131,7 @@ class _BoardScreenState extends ConsumerState<BoardScreen> {
     }
     return Scaffold(
       appBar: AppBar(title: Text(widget.board.title)),
-      floatingActionButton: FloatingActionButton.extended(key: const Key('new_thread'), onPressed: _start, icon: const Icon(Icons.edit_outlined), label: const Text('New thread')),
+      floatingActionButton: FloatingActionButton.extended(key: const Key('new_thread'), onPressed: _start, icon: const Icon(Icons.edit_outlined), label: Text(AppLocalizations.of(context)?.sNewThread ?? 'New thread')),
       body: body,
     );
   }
@@ -177,7 +178,7 @@ class _NewThreadSheetState extends State<_NewThreadSheet> {
       child: SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(20, 4, 20, 20 + MediaQuery.viewInsetsOf(context).bottom),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text('Start a thread', style: t.textTheme.headlineSmall),
+          Text(AppLocalizations.of(context)?.sStartAThread ?? 'Start a thread', style: t.textTheme.headlineSmall),
           const SizedBox(height: 6),
           Text('Your name shows only while you are in Open mode. Otherwise you appear under a nickname.', style: t.textTheme.bodyMedium),
           const SizedBox(height: 14),
@@ -188,7 +189,7 @@ class _NewThreadSheetState extends State<_NewThreadSheet> {
           FilledButton(
             key: const Key('thread_post'),
             onPressed: _busy ? null : _post,
-            child: _busy ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Post thread'),
+            child: _busy ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : Text(AppLocalizations.of(context)?.sPostThread ?? 'Post thread'),
           ),
         ]),
       ),

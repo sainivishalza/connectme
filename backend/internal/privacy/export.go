@@ -14,6 +14,8 @@ type Export struct {
 	GeneratedAt   time.Time        `json:"generated_at"`
 	Account       map[string]any   `json:"account"`
 	Profile       map[string]any   `json:"profile"`
+	Details       map[string]any   `json:"profile_details"`
+	Prompts       []map[string]any `json:"profile_prompts"`
 	Matches       []map[string]any `json:"matches"`
 	Swipes        map[string]int   `json:"swipes"`
 	Blocks        int              `json:"blocks"`
@@ -70,6 +72,17 @@ func (s *Service) Export(ctx context.Context, userID string) (*Export, error) {
 			"mood": mood, "mode": mode, "tags": tags, "photo_count": len(ph), "has_location": hasLoc,
 			"invisible": invisible,
 		}
+	}
+
+	// Rich profile fields and prompt answers (one row each; absent = never set).
+	if rows, e := s.maps(ctx, `
+		SELECT height_cm, job_title, education, hometown, zodiac, goal, kids, drinking, smoking, exercise, pets, languages
+		  FROM profile_details WHERE user_id=$1::uuid`, userID); e == nil && len(rows) > 0 {
+		ex.Details = rows[0]
+	}
+	ex.Prompts, _ = s.maps(ctx, `SELECT slot, prompt_key, answer FROM profile_prompts WHERE user_id=$1::uuid ORDER BY slot`, userID)
+	if ex.Prompts == nil {
+		ex.Prompts = []map[string]any{}
 	}
 
 	ex.Matches, err = s.maps(ctx, `

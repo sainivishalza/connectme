@@ -68,6 +68,13 @@ Do not edit by hand. **Auth** is `public` only for the allowlist enforced by the
 | GET | `/games/quiz/sets` | user |
 | POST | `/games/quiz/{id}/answer` | user |
 | POST | `/games/quiz` | user |
+| POST | `/games/td/{id}/done` | user |
+| POST | `/games/td/{id}/pick` | user |
+| POST | `/games/td/{id}/skip` | user |
+| POST | `/games/td/{id}/start` | user |
+| POST | `/games/td/{id}/take-over` | user |
+| DELETE | `/games/td/{id}` | user |
+| GET | `/games/td/{id}` | user |
 | PUT | `/geo/checkin/mood` | user |
 | GET | `/geo/checkin` | user |
 | POST | `/geo/checkin` | user |

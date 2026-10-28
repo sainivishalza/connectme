@@ -1,0 +1,36 @@
+package quiz
+
+// Bank is the curated question list. Ids are stable; options are shown in order and
+// stored by index. No question asks for anything identifying.
+var Bank = []Question{
+	{ID: "weekend", Text: "How do you like to spend a free weekend?", Options: []string{"Out with friends", "Exploring somewhere new", "Quiet time at home", "A bit of everything"}},
+	{ID: "morning", Text: "When does your day really start?", Options: []string{"Early morning", "Mid-morning", "Afternoon", "Late at night"}},
+	{ID: "plans", Text: "Plans or spontaneity?", Options: []string{"Plan everything", "Rough plan", "Mostly spontaneous", "Total go-with-the-flow"}},
+	{ID: "social", Text: "How social are you?", Options: []string{"Life of the party", "Social in small groups", "Selectively social", "Mostly a homebody"}},
+	{ID: "conflict", Text: "In a disagreement you usually", Options: []string{"Talk it through right away", "Take space, then talk", "Avoid it if possible", "Joke it off"}},
+	{ID: "money", Text: "Money is best", Options: []string{"Saved carefully", "Balanced", "Spent on experiences", "Not something I think about"}},
+	{ID: "travel", Text: "Your kind of trip", Options: []string{"Beach and rest", "City and culture", "Outdoors and adventure", "Road trip, no plan"}},
+	{ID: "pets", Text: "Pets in your life", Options: []string{"Dogs", "Cats", "Both", "Neither"}},
+	{ID: "fitness", Text: "Fitness is", Options: []string{"A daily habit", "A few times a week", "Now and then", "Not my thing"}},
+	{ID: "food", Text: "Food is", Options: []string{"Cook at home", "Eat out often", "Whatever is easy", "Food is an adventure"}},
+	{ID: "family", Text: "Family and close ties", Options: []string{"Very central", "Important", "Balanced with friends", "Fairly independent"}},
+	{ID: "ambition", Text: "Career and ambition", Options: []string{"Top priority", "Important", "Balanced with life", "Work to live"}},
+	{ID: "romance", Text: "Romance looks like", Options: []string{"Grand gestures", "Small daily kindnesses", "Quality time", "Words and messages"}},
+	{ID: "space", Text: "Alone time", Options: []string{"Need lots", "Need some", "A little", "Prefer being together"}},
+	{ID: "humour", Text: "Your humour", Options: []string{"Dry and witty", "Silly and playful", "Dark", "Gentle and kind"}},
+	{ID: "texting", Text: "Texting style", Options: []string{"Constant chatter", "A few times a day", "Short and sweet", "Call me instead"}},
+	{ID: "night", Text: "A perfect night in", Options: []string{"Film marathon", "Cooking together", "Games", "Reading or music"}},
+	{ID: "music", Text: "Music is", Options: []string{"Always on", "Part of my routine", "Background", "Live shows only"}},
+	{ID: "outdoors", Text: "Nature", Options: []string{"Hiking and camping", "Parks and walks", "Beach and water", "City life for me"}},
+	{ID: "tidy", Text: "Your home is", Options: []string{"Spotless", "Tidy", "Lived-in", "Organised chaos"}},
+	{ID: "future", Text: "In five years you see", Options: []string{"Settled with family", "Building a career", "Travelling the world", "Not sure yet"}},
+	{ID: "kidsfeel", Text: "Children someday", Options: []string{"Definitely", "Probably", "Probably not", "Definitely not"}},
+	{ID: "honesty", Text: "Honesty means", Options: []string{"Always, even if it hurts", "Kindly honest", "Depends on the moment", "Tact over truth"}},
+	{ID: "affection", Text: "Showing affection in public", Options: []string{"Love it", "A little", "Rarely", "Private only"}},
+	{ID: "tech", Text: "Phones at dinner", Options: []string{"Never", "Rarely", "Sometimes", "No rules"}},
+	{ID: "risk", Text: "Risk", Options: []string{"Love a thrill", "Calculated risks", "Cautious", "Prefer certainty"}},
+	{ID: "learn", Text: "Learning", Options: []string{"Always a project", "Curious about most", "When needed", "Rarely"}},
+	{ID: "drinks", Text: "A night out means", Options: []string{"Cocktails", "Coffee or tea", "Dancing", "Dinner and a chat"}},
+	{ID: "belief", Text: "Big questions in life", Options: []string{"Faith guides me", "Spiritual, not religious", "Science and reason", "Still figuring it out"}},
+	{ID: "giving", Text: "Giving back", Options: []string{"Volunteering", "Donating", "Helping friends", "Not a focus"}},
+}

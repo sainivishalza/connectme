@@ -11,7 +11,7 @@ const burnOptions = {
 };
 
 Future<int?> pickBurnSeconds(BuildContext context) => showModalBottomSheet<int>(
-  context: context,
+  context: context, useRootNavigator: true,
   builder: (c) => ListView(
     shrinkWrap: true,
     children: [
@@ -35,7 +35,7 @@ const reportReasons = {
 
 Future<String?> pickReportReason(BuildContext context) =>
     showModalBottomSheet<String>(
-      context: context,
+      context: context, useRootNavigator: true,
       builder: (c) => ListView(
         shrinkWrap: true,
         children: [

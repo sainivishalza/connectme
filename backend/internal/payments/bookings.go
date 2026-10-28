@@ -55,7 +55,8 @@ func (s *Service) RefundBooking(ctx context.Context, bookingID string) error {
 	}
 	var intent *string
 	var pay string
-	err := s.db.QueryRow(ctx, `SELECT payment_intent, payment_status FROM bookings WHERE id=$1::uuid`, bookingID).Scan(&intent, &pay)
+	var settled bool
+	err := s.db.QueryRow(ctx, `SELECT payment_intent, payment_status, payout_id IS NOT NULL FROM bookings WHERE id=$1::uuid`, bookingID).Scan(&intent, &pay, &settled)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
 	}
@@ -64,6 +65,9 @@ func (s *Service) RefundBooking(ctx context.Context, bookingID string) error {
 	}
 	if pay != "paid" || intent == nil || *intent == "" {
 		return ValidationError{"only a paid booking can be refunded"}
+	}
+	if settled {
+		return ValidationError{"this booking was already paid out to the partner; recover the money from the partner first"}
 	}
 	return s.stripe.Refund(ctx, *intent)
 }

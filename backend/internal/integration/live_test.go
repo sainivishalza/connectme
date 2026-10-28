@@ -350,3 +350,29 @@ func TestHostCanMuteAndKickViewers(t *testing.T) {
 		t.Error("events do not carry the sender ref")
 	}
 }
+
+// A member who has not finished onboarding has no display name. Their chat line
+// used to break the event feed for everyone in the room.
+func TestLiveChatSurvivesAMemberWithoutADisplayName(t *testing.T) {
+	e := setup(t)
+	host, fresh := e.user("Host Person"), e.user("Fresh")
+	e.exec(`UPDATE profiles SET display_name=NULL WHERE user_id=$1`, fresh)
+	room := e.goLive(host, "name-less guest")
+	if c, b := e.call("POST", "/live/rooms/"+room.Room.ID+"/chat", map[string]string{"text": "hi from the guest"}, fresh); c != 204 {
+		t.Fatalf("guest chat: %d %s", c, b)
+	}
+	for i := 1; i <= 3; i++ {
+		if c, b := e.call("POST", "/live/rooms/"+room.Room.ID+"/chat", map[string]string{"text": fmt.Sprintf("host line %d", i)}, host); c != 204 {
+			t.Fatalf("host chat %d: %d %s", i, c, b)
+		}
+	}
+	c, b := e.call("GET", "/live/rooms/"+room.Room.ID+"/events?after=0", nil, host)
+	if c != 200 || !strings.Contains(string(b), "hi from the guest") || !strings.Contains(string(b), "host line 3") || !strings.Contains(string(b), "Someone") {
+		t.Fatalf("events: %d %s", c, b)
+	}
+	// The room list works even when the host has no name.
+	e.exec(`UPDATE profiles SET display_name=NULL WHERE user_id=$1`, host)
+	if c, b := e.call("GET", "/live/rooms", nil, fresh); c != 200 || !strings.Contains(string(b), "name-less guest") {
+		t.Fatalf("list: %d %s", c, b)
+	}
+}

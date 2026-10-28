@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -19,7 +20,7 @@ class GroupDetailScreen extends ConsumerWidget {
     final g = ref.watch(groupProvider(groupId));
     final matches = ref.watch(groupMatchesProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Group')),
+      appBar: AppBar(title: Text(AppLocalizations.of(context)?.sGroup ?? 'Group')),
       body: g.when(
         loading: () => const Loader(),
         error: (e, _) => ErrorView(error: e, onRetry: () => ref.invalidate(groupProvider(groupId))),
@@ -50,7 +51,7 @@ class GroupDetailScreen extends ConsumerWidget {
                     label: 'Invite a friend',
                     icon: Icons.person_add_alt,
                     onPressed: () => showModalBottomSheet<void>(
-                      context: context,
+                      context: context, useRootNavigator: true,
                       isScrollControlled: true,
                       showDragHandle: true,
                       builder: (_) => InviteSheet(groupId: groupId),
@@ -68,7 +69,7 @@ class GroupDetailScreen extends ConsumerWidget {
                 OutlinedButton.icon(
                   onPressed: () => _ideas(context, ref),
                   icon: const Icon(Icons.lightbulb_outline),
-                  label: const Text('Date ideas'),
+                  label: Text(AppLocalizations.of(context)?.sDateIdeas ?? 'Date ideas'),
                 ),
                 if (mine.isNotEmpty) ...[
                   const SizedBox(height: 24),
@@ -103,16 +104,27 @@ class GroupDetailScreen extends ConsumerWidget {
     await guarded(context, () async => s = await ref.read(groupsRepositoryProvider).suggestions(groupId));
     if (s == null || !context.mounted) return;
     await showModalBottomSheet<void>(
-      context: context,
+      context: context, useRootNavigator: true,
       builder: (_) => ListView(
         padding: const EdgeInsets.all(16),
         shrinkWrap: true,
         children: [
+          if (s!.plan.isNotEmpty) ...[
+            Text('A plan for the day', style: Theme.of(context).textTheme.titleMedium),
+            for (var i = 0; i < s!.plan.length; i++)
+              ListTile(key: Key('plan_$i'), leading: CircleAvatar(radius: 14, child: Text('${i + 1}')), title: Text(s!.plan[i])),
+            const Divider(),
+          ],
           Text('Where to go', style: Theme.of(context).textTheme.titleMedium),
           for (final v in s!.venues) ListTile(leading: const Icon(Icons.place_outlined), title: Text(v)),
           const Divider(),
           Text('Icebreakers', style: Theme.of(context).textTheme.titleMedium),
           for (final i in s!.icebreakers) ListTile(leading: const Icon(Icons.chat_outlined), title: Text(i)),
+          if (s!.source == 'llm')
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text('Ideas written by an AI assistant from your shared interests. Check details yourself before you go.', key: const Key('ai_note'), style: Theme.of(context).textTheme.bodySmall),
+            ),
         ],
       ),
     );
@@ -125,8 +137,8 @@ class GroupDetailScreen extends ConsumerWidget {
         title: const Text('Leave this group?'),
         content: const Text('If it has an active match, the match and its chat will end.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Stay')),
-          TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Leave')),
+          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(AppLocalizations.of(context)?.sStay ?? 'Stay')),
+          TextButton(onPressed: () => Navigator.pop(c, true), child: Text(AppLocalizations.of(context)?.sLeave ?? 'Leave')),
         ],
       ),
     );

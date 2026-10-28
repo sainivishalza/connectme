@@ -43,6 +43,8 @@ func Routes(svc *Service, rdb *redis.Client, secret []byte) http.Handler {
 	r.With(admin, lim("admin", 300, time.Hour)).Get("/bookings", h.staffBookings)
 	r.With(admin, lim("admin", 300, time.Hour)).Post("/bookings/{id}/decision", h.decide)
 	r.With(admin, lim("admin", 300, time.Hour)).Get("/{id}/report", h.report)
+	r.With(admin, lim("admin", 60, time.Hour)).Post("/{id}/payouts", h.settle)
+	r.With(admin, lim("admin", 300, time.Hour)).Get("/{id}/payouts", h.payouts)
 	r.With(admin, lim("admin", 60, time.Hour)).Post("/{id}/managers", h.addManager)
 	r.With(admin, lim("admin", 300, time.Hour)).Get("/{id}/managers", h.managers)
 	r.With(admin, lim("admin", 60, time.Hour)).Delete("/{id}/managers/{ref}", h.removeManager)
@@ -55,6 +57,7 @@ func Routes(svc *Service, rdb *redis.Client, secret []byte) http.Handler {
 	r.With(lim("manage", 300, time.Hour)).Get("/manage/partners/{id}/bookings", h.managerBookings)
 	r.With(lim("manage-write", 300, time.Hour)).Post("/manage/bookings/{id}/decision", h.managerDecide)
 	r.With(lim("manage", 300, time.Hour)).Get("/manage/partners/{id}/report", h.managerReport)
+	r.With(lim("manage", 300, time.Hour)).Get("/manage/partners/{id}/payouts", h.managerPayouts)
 	return r
 }
 
@@ -222,6 +225,37 @@ func (h *Handler) decide(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	middleware.WriteJSON(w, http.StatusOK, b)
+}
+
+func (h *Handler) settle(w http.ResponseWriter, r *http.Request) {
+	var req PayoutRequest
+	if !decode(w, r, &req) {
+		return
+	}
+	p, err := h.svc.SettlePartner(r.Context(), uid(r), chi.URLParam(r, "id"), req)
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	middleware.WriteJSON(w, http.StatusCreated, p)
+}
+
+func (h *Handler) payouts(w http.ResponseWriter, r *http.Request) {
+	ps, err := h.svc.Payouts(r.Context(), chi.URLParam(r, "id"))
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	middleware.WriteJSON(w, http.StatusOK, map[string]any{"payouts": ps})
+}
+
+func (h *Handler) managerPayouts(w http.ResponseWriter, r *http.Request) {
+	ps, err := h.svc.ManagerPayouts(r.Context(), uid(r), chi.URLParam(r, "id"))
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	middleware.WriteJSON(w, http.StatusOK, map[string]any{"payouts": ps})
 }
 
 func (h *Handler) report(w http.ResponseWriter, r *http.Request) {

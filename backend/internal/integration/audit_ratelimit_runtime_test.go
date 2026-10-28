@@ -18,7 +18,9 @@ func TestAuditEveryLiveRouteIsRateLimitedAtRuntime(t *testing.T) {
 		"POST /payments/webhook": "authenticated by Stripe signature; Stripe controls the rate",
 	}
 	admin := e.newUser("admin", true, "RuntimeAudit")
-	tok := e.tokenFor(admin, "admin") // admin passes every permission gate, so we reach the limiter
+	// A fresh token per route (admin passes every permission gate, so we reach the
+	// limiter): the walk includes sign-out-everywhere and password routes, which
+	// void the tokens issued before them (decision 119).
 
 	checked := 0
 	for _, r := range routesOf(t, e.h) {
@@ -26,7 +28,7 @@ func TestAuditEveryLiveRouteIsRateLimitedAtRuntime(t *testing.T) {
 		if _, ok := exempt[key]; ok {
 			continue
 		}
-		rec := e.fire(r.Method, concrete(r.Path), []byte("{}"), tok, map[string]string{"Content-Type": "application/json"})
+		rec := e.fire(r.Method, concrete(r.Path), []byte("{}"), e.tokenFor(admin, "admin"), map[string]string{"Content-Type": "application/json"})
 		if rec.Header().Get("X-RateLimit-Limit") == "" && rec.Code != http.StatusTooManyRequests {
 			t.Errorf("%s answered %d without passing a rate limiter", key, rec.Code)
 		}

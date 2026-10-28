@@ -14,6 +14,7 @@ import (
 	"connectme/migrations"
 	"connectme/pkg/config"
 	"connectme/pkg/database"
+	"connectme/pkg/errtrack"
 )
 
 func main() {
@@ -27,6 +28,14 @@ func run() error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
+	}
+	rep, err := errtrack.Init(cfg.SentryDSN, cfg.Env, os.Getenv("RELEASE"))
+	if err != nil {
+		return err
+	}
+	if rep != nil {
+		slog.SetDefault(slog.New(errtrack.Wrap(slog.Default().Handler())))
+		defer rep.Flush(3 * time.Second)
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -8,7 +9,9 @@ import '../../../shared/widgets/avatar.dart';
 import '../../../shared/widgets/states.dart';
 import '../../chat/data/chat_repository.dart';
 import '../../communities/communities_repository.dart';
+import '../../sponsors/sponsored_card.dart';
 import '../social_repository.dart';
+import '../widgets/comments_sheet.dart';
 import '../widgets/post_card.dart';
 
 /// A feed of one kind of post: Moments, Little Universe or Missed connections.
@@ -34,6 +37,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
   bool _loadingMore = false;
 
   PostKind get kind => widget.kind;
+  bool get _showsAds => widget.community == null && (kind == PostKind.moment || kind == PostKind.universe);
 
   @override
   void initState() {
@@ -106,7 +110,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
   Future<void> _report(Post p) async {
     const reasons = {'spam': 'Spam', 'harassment': 'Harassment', 'inappropriate_content': 'Inappropriate', 'scam': 'Scam', 'underage': 'Seems underage', 'other': 'Something else'};
     final reason = await showModalBottomSheet<String>(
-      context: context,
+      context: context, useRootNavigator: true,
       isScrollControlled: true,
       builder: (c) => SafeArea(
         child: SingleChildScrollView(
@@ -137,7 +141,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
 
   Future<void> _openClaims(Post p) async {
     await showModalBottomSheet<void>(
-      context: context,
+      context: context, useRootNavigator: true,
       isScrollControlled: true,
       builder: (c) => _ClaimsSheet(post: p, repo: _repo, onMatch: (matchId) {
         Navigator.pop(c);
@@ -148,9 +152,28 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
     _load();
   }
 
+  Future<void> _openComments(Post p) async {
+    await showModalBottomSheet<void>(
+      context: context, useRootNavigator: true,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (c) => CommentsSheet(
+        load: () => _repo.comments(p.id),
+        send: (body) => _repo.comment(p.id, body),
+        delete: _repo.deleteComment,
+        report: (id) => _repo.reportComment(id, 'inappropriate_content'),
+        canModerate: p.mine,
+        onCount: (n) {
+          final i = _posts.indexWhere((x) => x.id == p.id);
+          if (i >= 0 && _posts[i].comments != n && mounted) setState(() => _posts[i] = _posts[i].copyWith(comments: n));
+        },
+      ),
+    );
+  }
+
   Future<void> _compose() async {
     final body = await showModalBottomSheet<String>(
-      context: context,
+      context: context, useRootNavigator: true,
       isScrollControlled: true,
       builder: (c) => _ComposeSheet(kind: kind),
     );
@@ -201,10 +224,11 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
           controller: _scroll,
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
-          itemCount: _posts.length,
+          itemCount: _posts.length + (_showsAds ? 1 : 0),
           separatorBuilder: (_, _) => const SizedBox(height: 12),
           itemBuilder: (c, i) {
-            final p = _posts[i];
+            if (_showsAds && i == 0) return const SponsoredSlot();
+            final p = _posts[_showsAds ? i - 1 : i];
             return PostCard(
               key: ValueKey(p.id),
               post: p,
@@ -213,6 +237,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
               onDelete: (p.mine || (widget.community?.owner ?? false)) ? () => _delete(p) : null,
               onClaim: () => _claim(p),
               onOpenClaims: () => _openClaims(p),
+              onComments: () => _openComments(p),
             );
           },
         ),
@@ -224,7 +249,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
         key: const Key('compose_post'),
         onPressed: _compose,
         icon: const Icon(Icons.edit_outlined),
-        label: const Text('Post'),
+        label: Text(AppLocalizations.of(context)?.sPost ?? 'Post'),
       ),
       body: body,
     );
@@ -363,7 +388,7 @@ class _ComposeSheetState extends State<_ComposeSheet> {
             decoration: const InputDecoration(hintText: 'Say something kind'),
           ),
           const SizedBox(height: 8),
-          FilledButton(key: const Key('post_send'), onPressed: () => Navigator.pop(context, _text.text.trim()), child: const Text('Post')),
+          FilledButton(key: const Key('post_send'), onPressed: () => Navigator.pop(context, _text.text.trim()), child: Text(AppLocalizations.of(context)?.sPost ?? 'Post')),
         ]),
       ),
     );

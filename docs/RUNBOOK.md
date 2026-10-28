@@ -72,6 +72,9 @@ Watch `push_sent`, `push_failed`, `push_token_dropped`, `push_collapsed` and `pu
 4. The manager signs in at `/partner/` to confirm bookings with a price, schedule events and read earnings.
 5. Settlement: `GET /partners/{id}/report` shows collected, commission and owed amounts and refunds due; payouts happen outside the app. Refunds: `POST /payments/bookings/{id}/refund` (admin), recorded when Stripe confirms.
 
+## 7c. AI wingman
+Set on the ai-service: `WINGMAN_PROVIDER=llm`, `ANTHROPIC_API_KEY` (a secret), optionally `WINGMAN_MODEL`, `WINGMAN_LLM_RPM` and `WINGMAN_TIMEOUT_S`. Without a key it silently stays on templates. Check it works: `POST /wingman/suggest` with the internal key returns `"source":"llm"` and a `plan`; `"source":"ai"` means it fell back (look for `wingman: ...` log lines, which never contain prompts). Allow egress from the ai-service to the provider on TCP 443. Update the privacy notice before enabling (see AUDIT 3.15).
+
 ## 8. Maintenance hygiene
 - Rotate staff accounts when people leave: set `users.role='user'` or ban, **and** call `POST /moderation/users/{ref}/revoke-sessions` (admin): the role inside an access token is trusted until the sessions are revoked.
 - Review dependency advisories monthly (`go list -m -u all`, `pip-audit`, `npm audit`, `flutter pub outdated`); the CI runs the test suites on every push.

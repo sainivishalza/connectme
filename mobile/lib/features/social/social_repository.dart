@@ -32,6 +32,7 @@ class Post {
     this.liked = false,
     this.claims = 0,
     this.claimed = false,
+    this.comments = 0,
   });
 
   final String id;
@@ -47,6 +48,7 @@ class Post {
   final bool liked;
   final int claims; // pending "that's me" on my own missed post
   final bool claimed; // I already said "that's me"
+  final int comments;
 
   factory Post.fromJson(Map<String, dynamic> j) => Post(
         id: jsonString(j['id']),
@@ -62,9 +64,10 @@ class Post {
         liked: jsonBool(j['liked']),
         claims: jsonInt(j['claims']),
         claimed: jsonBool(j['claimed']),
+        comments: jsonInt(j['comments']),
       );
 
-  Post copyWith({int? likes, bool? liked, bool? claimed}) => Post(
+  Post copyWith({int? likes, bool? liked, bool? claimed, int? comments}) => Post(
         id: id,
         kind: kind,
         body: body,
@@ -78,6 +81,28 @@ class Post {
         liked: liked ?? this.liked,
         claims: claims,
         claimed: claimed ?? this.claimed,
+        comments: comments ?? this.comments,
+      );
+}
+
+/// A reply under a post. [name] is a nickname under anonymous posts and
+/// "Someone" for commenters who are not shown in full.
+class PostComment {
+  PostComment({required this.id, required this.body, required this.name, this.author = false, this.mine = false, this.createdAt});
+  final String id;
+  final String body;
+  final String name;
+  final bool author; // wrote the post
+  final bool mine;
+  final DateTime? createdAt;
+
+  factory PostComment.fromJson(Map<String, dynamic> j) => PostComment(
+        id: jsonString(j['id']),
+        body: jsonString(j['body']),
+        name: jsonString(j['name']),
+        author: jsonBool(j['author']),
+        mine: jsonBool(j['mine']),
+        createdAt: DateTime.tryParse(jsonString(j['created_at'])),
       );
 }
 
@@ -110,6 +135,16 @@ class SocialRepository {
   }
 
   Future<void> report(String id, String reason) => _api.post('/social/posts/$id/report', body: {'reason': reason});
+
+  Future<List<PostComment>> comments(String postId) async =>
+      listOf((await _api.getMap('/social/posts/$postId/comments'))['comments'], PostComment.fromJson);
+
+  Future<PostComment> comment(String postId, String body) async =>
+      PostComment.fromJson(await _api.postMap('/social/posts/$postId/comments', body: {'body': body}));
+
+  Future<void> deleteComment(String id) => _api.delete('/social/comments/$id');
+
+  Future<void> reportComment(String id, String reason) => _api.post('/social/comments/$id/report', body: {'reason': reason});
 
   Future<void> claim(String id) => _api.post('/social/posts/$id/claim');
 

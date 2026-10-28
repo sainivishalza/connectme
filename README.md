@@ -67,7 +67,7 @@ Feature-by-feature status against the PRD is in `docs/FEATURES.md`.
 
 ## Not in this build
 
-The AI Wingman as a full agent (needs an LLM provider), payouts to partners (booking payments are collected, but settlement is manual), a video-scanner provider (the interface and review queue are built; production refuses videos without a real scanner), the Firebase plugin in the app (push is built on the server and behind an app interface, but never run against Firebase), real CSAM/ID-verification providers, Android/iOS release builds, tracing and error tracking.
+Advertiser self-service and billing for sponsored placements (staff enter them through the API), group games, an AI that joins group chat (blocked by end-to-end encryption), the AI Wingman's language-model mode has never run against a real model (it needs an API key), payouts to partners (booking payments are collected and each settlement is recorded in a ledger, but the money itself is moved by hand), a video-scanner provider (the interface and review queue are built; production refuses videos without a real scanner), the Firebase plugin in the app (push is built on the server and behind an app interface, but never run against Firebase), real CSAM/ID-verification providers, Android/iOS release builds, tracing and error tracking.
 Live streaming (with chat, gifts and host/staff moderation), the moderator dashboard (`/admin/`), metrics/alerts/Grafana (`ops/`) and
 Kubernetes manifests (`ops/k8s`) are built and tested locally, but the camera path has not run on a device and the manifests have not
 been applied to a cluster. Privacy policy and terms are drafts (`docs/legal/`). See `docs/AUDIT.md` §3-4.

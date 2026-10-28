@@ -80,8 +80,7 @@ func setup(t *testing.T) *env {
 	secret := bytes.Repeat([]byte("k"), 40)
 	mail := &captureMailer{}
 	svc := NewService(db, rdb, NewTokenStore(rdb, time.Hour), mail, secret, 15*time.Minute)
-	ver := &VerificationHandler{DB: db, CSAM: StubCSAMScanner{}, Liveness: StubLiveness{}}
-	return &env{h: Routes(svc, rdb, secret, ver), mail: mail, db: db, secret: secret}
+	return &env{h: Routes(svc, rdb, secret), mail: mail, db: db, secret: secret}
 }
 
 func (e *env) post(path string, body any, bearer string) (int, map[string]any) {

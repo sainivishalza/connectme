@@ -17,6 +17,7 @@ ConnectMe is for adults aged **18 or older**. We ask for your date of birth at s
 | Messages and attachments | Deliver chat | **End-to-end encrypted**: our servers store and relay only ciphertext and cannot read it. History is kept on your devices |
 | Purchases (coins, subscriptions, gifts) | Provide paid features | Card details go to our payment processor (Stripe); we never see or store card numbers |
 | Technical data: IP address, device and request metadata, security logs | Security, abuse and rate limiting | Logs do not contain passwords or tokens |
+| Photo ID check (optional): a photo of an ID document, a selfie holding a short code, and your declared date of birth | Confirm you are who you say you are and are 18 or over | Seen only by our review team, every viewing is logged, and **both photos are deleted as soon as the team decides** (or within [7 days] if nobody reviews them). We keep only the result and when it was decided |
 | Automated safety signals | Detect scams, abuse and prohibited content in profile text and photos | See section 5 |
 
 We do not sell personal data and do not use it for third-party advertising.

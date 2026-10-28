@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"connectme/internal/chat"
+	"connectme/internal/levels"
 	"connectme/internal/push"
 	"connectme/internal/server"
 	"connectme/internal/users"
@@ -47,6 +48,7 @@ func setup(t *testing.T) *env {
 	if pgURL == "" || redisURL == "" {
 		t.Skip("TEST_POSTGRES_URL / TEST_REDIS_URL not set")
 	}
+	levels.CacheTTL = 0 // tests read rankings right after changing them
 	ctx := context.Background()
 	db, err := database.NewPostgres(ctx, pgURL)
 	if err != nil {
@@ -78,8 +80,11 @@ func setup(t *testing.T) *env {
 	}))
 	t.Cleanup(scanner.Close)
 	cfg := config.Config{Env: "development", JWTSecret: secret, JWTAccessExpiry: 15 * time.Minute,
-		JWTRefreshExpiry: time.Hour, MediaDir: t.TempDir(), EnableVideo: true, VideoScanner: "http", VideoScannerURL: scanner.URL, VideoScannerKey: "test-key",
+		JWTRefreshExpiry: time.Hour, MediaDir: t.TempDir(), EnableVideo: true, EnableInvestors: true, InvestorOwnerName: "Vishal Saini", InvestorPaymentNote: "Bank transfer details are sent by the owner.", VideoScanner: "http", VideoScannerURL: scanner.URL, VideoScannerKey: "test-key",
 		LiveKitURL: "ws://livekit.test:7880", LiveKitAPIKey: "devkey", LiveKitAPISecret: "livekit-test-secret-at-least-32-bytes!!"}
+	if u, sec := os.Getenv("TEST_LIVEKIT_URL"), os.Getenv("TEST_LIVEKIT_SECRET"); u != "" && sec != "" {
+		cfg.LiveKitURL, cfg.LiveKitAPISecret = u, sec // a real server, for livekit_real_test.go
+	}
 	if ep := os.Getenv("TEST_S3_ENDPOINT"); ep != "" {
 		// Run the whole suite (photos, chat media, erasure, retention) on an
 		// S3-compatible store instead of local disk.

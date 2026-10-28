@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -13,7 +14,7 @@ class AudioListScreen extends ConsumerWidget {
   Future<void> _start(BuildContext context, WidgetRef ref) async {
     final repo = ref.read(audioRepositoryProvider);
     final started = await showModalBottomSheet<StartedAudio>(
-      context: context,
+      context: context, useRootNavigator: true,
       isScrollControlled: true,
       builder: (_) => _StartSheet(repo: repo),
     );
@@ -26,15 +27,32 @@ class AudioListScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final rooms = ref.watch(audioRoomsProvider);
+    final topic = ref.watch(audioTopicProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Audio rooms')),
+      appBar: AppBar(title: Text(AppLocalizations.of(context)?.sAudioRooms ?? 'Audio rooms')),
       floatingActionButton: FloatingActionButton.extended(
         key: const Key('start_audio'),
         onPressed: () => _start(context, ref),
         icon: const Icon(Icons.mic),
-        label: const Text('Start a room'),
+        label: Text(AppLocalizations.of(context)?.sStartARoom ?? 'Start a room'),
       ),
-      body: AsyncListView<AudioRoom>(
+      body: Column(children: [
+        SizedBox(
+          height: 64,
+          child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), children: [
+            for (final t in ['', ...audioTopics])
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: ChoiceChip(
+                  key: Key('audio_topic_${t.isEmpty ? 'all' : t}'),
+                  label: Text(audioTopicLabel(t)),
+                  selected: topic == t,
+                  onSelected: (_) => ref.read(audioTopicProvider.notifier).set(t),
+                ),
+              ),
+          ]),
+        ),
+        Expanded(child: AsyncListView<AudioRoom>(
         value: rooms,
         onRefresh: () async => ref.refresh(audioRoomsProvider.future),
         emptyTitle: 'No rooms open',
@@ -45,7 +63,7 @@ class AudioListScreen extends ConsumerWidget {
             key: Key('audio_${r.id}'),
             leading: CircleAvatar(child: Icon(r.anonymous ? Icons.masks_outlined : Icons.graphic_eq)),
             title: Text(r.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-            subtitle: Text('${r.speakers} on stage · ${r.listeners} listening${r.anonymous ? ' · anonymous' : ''}'),
+            subtitle: Text('${audioTopicLabel(r.topic)} · ${r.speakers} on stage · ${r.listeners} listening${r.anonymous ? ' · anonymous' : ''}'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () async {
               await c.push('/audio/${r.id}');
@@ -53,7 +71,8 @@ class AudioListScreen extends ConsumerWidget {
             },
           ),
         ),
-      ),
+      )),
+      ]),
     );
   }
 }
@@ -69,6 +88,7 @@ class _StartSheet extends StatefulWidget {
 class _StartSheetState extends State<_StartSheet> {
   final _title = TextEditingController();
   bool _anonymous = false;
+  String _topic = 'open';
   bool _busy = false;
 
   @override
@@ -80,7 +100,7 @@ class _StartSheetState extends State<_StartSheet> {
   Future<void> _go() async {
     setState(() => _busy = true);
     try {
-      final s = await widget.repo.start(_title.text.trim(), anonymous: _anonymous);
+      final s = await widget.repo.start(_title.text.trim(), anonymous: _anonymous, topic: _topic);
       if (mounted) Navigator.pop(context, s);
     } catch (e) {
       if (mounted) {
@@ -102,6 +122,13 @@ class _StartSheetState extends State<_StartSheet> {
           Text('You decide who speaks. Listeners can raise a hand.', style: t.textTheme.bodyMedium),
           const SizedBox(height: 14),
           TextField(key: const Key('audio_title'), controller: _title, maxLength: 80, decoration: const InputDecoration(labelText: 'What is it about?')),
+          DropdownButtonFormField<String>(
+            key: const Key('audio_topic'),
+            initialValue: _topic,
+            decoration: const InputDecoration(labelText: 'Topic'),
+            items: [for (final t in audioTopics) DropdownMenuItem(value: t, child: Text(audioTopicLabel(t)))],
+            onChanged: (v) => setState(() => _topic = v ?? 'open'),
+          ),
           SwitchListTile(
             key: const Key('audio_anonymous'),
             contentPadding: EdgeInsets.zero,

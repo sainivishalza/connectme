@@ -74,13 +74,13 @@ func (s *Service) Events(ctx context.Context, userID, roomID string, after int64
 	if after == 0 {
 		rows, err = s.db.Query(ctx, `
 			SELECT * FROM (
-			  SELECT e.id, p.public_ref::text, e.kind, CASE WHEN p.mode='open' THEN p.display_name ELSE 'Someone' END, e.body, e.created_at
+			  SELECT e.id, p.public_ref::text, e.kind, CASE WHEN p.mode='open' THEN COALESCE(NULLIF(p.display_name,''),'Someone') ELSE 'Someone' END, COALESCE(e.body,''), e.created_at
 			    FROM live_events e JOIN profiles p ON p.user_id=e.user_id
 			   WHERE e.room_id=$1::uuid AND `+users.NotBlockedSQL("e.user_id", "$2::uuid")+`
 			   ORDER BY e.id DESC LIMIT 30) t ORDER BY id ASC`, roomID, userID)
 	} else {
 		rows, err = s.db.Query(ctx, `
-			SELECT e.id, p.public_ref::text, e.kind, CASE WHEN p.mode='open' THEN p.display_name ELSE 'Someone' END, e.body, e.created_at
+			SELECT e.id, p.public_ref::text, e.kind, CASE WHEN p.mode='open' THEN COALESCE(NULLIF(p.display_name,''),'Someone') ELSE 'Someone' END, COALESCE(e.body,''), e.created_at
 			  FROM live_events e JOIN profiles p ON p.user_id=e.user_id
 			 WHERE e.room_id=$1::uuid AND e.id > $3 AND `+users.NotBlockedSQL("e.user_id", "$2::uuid")+`
 			 ORDER BY e.id ASC LIMIT 100`, roomID, userID, after)

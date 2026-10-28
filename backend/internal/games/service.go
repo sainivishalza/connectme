@@ -19,7 +19,10 @@ var (
 	ErrBadRequest = errors.New("invalid request")
 )
 
-type Service struct{ db *pgxpool.Pool }
+type Service struct {
+	db     *pgxpool.Pool
+	vetter TextVetter
+}
 
 func NewService(db *pgxpool.Pool) *Service { return &Service{db: db} }
 

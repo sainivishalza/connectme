@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../l10n/app_localizations.dart';
+
 import '../../core/theme/tokens.dart';
 
 /// The mark: three overlapping lights, one per visibility mode.
@@ -48,7 +50,7 @@ class BrandHero extends StatelessWidget {
         Text('ConnectMe', style: t.textTheme.displaySmall, textAlign: TextAlign.center),
         const SizedBox(height: 8),
         Text(
-          'Be seen only as much as you choose.',
+          AppLocalizations.of(context)?.brandTagline ?? 'Be seen only as much as you choose.',
           style: t.textTheme.bodyMedium?.copyWith(color: t.colorScheme.onSurfaceVariant),
           textAlign: TextAlign.center,
         ),

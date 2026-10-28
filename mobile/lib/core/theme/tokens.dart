@@ -23,6 +23,7 @@ class Palette {
   static const nightMuted = Color(0xFFA3A5BD);
 
   static const danger = Color(0xFFC9304F);
+  static const dangerOnDark = Color(0xFFFF6B88); // the red above is too dim on the dark surfaces
 }
 
 /// The light of one visibility mode.
@@ -53,8 +54,8 @@ class ModeLight {
         ],
       );
 
-  static const daylight = ModeLight._('open', 'Open', Color(0xFFFFA77F), Color(0xFFE8457C), Color(0xFF3A0F22), Color(0xFFD63B72));
-  static const dusk = ModeLight._('incognito', 'Incognito', Color(0xFF2E2A6E), Color(0xFF7C6CF0), Color(0xFFFFFFFF), Color(0xFF5B4FD0));
+  static const daylight = ModeLight._('open', 'Open', Color(0xFFFFA77F), Color(0xFFEC5E8E), Color(0xFF3A0F22), Color(0xFFD63B72));
+  static const dusk = ModeLight._('incognito', 'Incognito', Color(0xFF2E2A6E), Color(0xFF6A58E0), Color(0xFFFFFFFF), Color(0xFF5B4FD0));
   static const lamplight = ModeLight._('hotel', 'Hotel', Color(0xFFF4D68A), Color(0xFFC9822B), Color(0xFF3A2400), Color(0xFF8A5A12));
 
   static ModeLight of(String mode) => switch (mode) {

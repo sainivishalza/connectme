@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/validators.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/app_snack.dart';
 import '../auth_controller.dart';
@@ -70,7 +71,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   Widget build(BuildContext context) {
     final t = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Create account'), leading: BackButton(onPressed: () => context.go('/login'))),
+      appBar: AppBar(title: Text(AppLocalizations.of(context)?.regTitle ?? 'Create account'), leading: BackButton(onPressed: () => context.go('/login'))),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -83,7 +84,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   key: const Key('email'),
                   controller: _email,
                   keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(labelText: 'Email'),
+                  decoration: InputDecoration(labelText: AppLocalizations.of(context)?.loginEmail ?? 'Email'),
                   validator: Validators.email,
                 ),
                 const SizedBox(height: 16),
@@ -91,8 +92,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   key: const Key('password'),
                   controller: _password,
                   obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Password',
+                  decoration: InputDecoration(
+                    labelText: AppLocalizations.of(context)?.loginPassword ?? 'Password',
                     helperText: '12+ characters with upper, lower, number and symbol',
                     helperMaxLines: 2,
                   ),
@@ -102,7 +103,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 TextFormField(
                   controller: _phone,
                   keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(labelText: 'Phone (optional, +14155550123)'),
+                  decoration: InputDecoration(labelText: AppLocalizations.of(context)?.regPhone ?? 'Phone (optional, +14155550123)'),
                 ),
                 const SizedBox(height: 16),
                 InkWell(
@@ -110,7 +111,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   onTap: _pickDob,
                   child: InputDecorator(
                     decoration: InputDecoration(
-                      labelText: 'Date of birth',
+                      labelText: AppLocalizations.of(context)?.regDob ?? 'Date of birth',
                       errorText: _dobError ? 'You must be 18 or older' : null,
                       suffixIcon: const Icon(Icons.calendar_today),
                     ),
@@ -118,9 +119,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Text('ConnectMe is for adults only.', style: t.textTheme.bodySmall),
+                Text(AppLocalizations.of(context)?.regAdults ?? 'ConnectMe is for adults only.', style: t.textTheme.bodySmall),
                 const SizedBox(height: 24),
-                AppButton(key: const Key('register'), label: 'Create account', busy: _busy, onPressed: _submit),
+                AppButton(key: const Key('register'), label: AppLocalizations.of(context)?.regTitle ?? 'Create account', busy: _busy, onPressed: _submit),
               ],
             ),
           ),

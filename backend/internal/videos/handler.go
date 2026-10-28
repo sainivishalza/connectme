@@ -37,6 +37,10 @@ func Routes(svc *Service, rdb *redis.Client, secret []byte) http.Handler {
 		r.With(small, lim("ticket", 600, 15*time.Minute)).Get("/{id}/ticket", h.ticket)
 		r.With(small, lim("like", 240, time.Hour)).Post("/{id}/like", h.like)
 		r.With(small, lim("report", 20, time.Hour)).Post("/{id}/report", h.report)
+		r.With(small, lim("comment", 60, time.Hour)).Post("/{id}/comments", h.comment)
+		r.With(small, lim("read", 120, time.Minute)).Get("/{id}/comments", h.comments)
+		r.With(small, lim("delete", 120, time.Hour)).Delete("/comments/{cid}", h.removeComment)
+		r.With(small, lim("report", 30, time.Hour)).Post("/comments/{cid}/report", h.reportComment)
 		r.With(small, lim("delete", 60, time.Hour)).Delete("/{id}", h.remove)
 	})
 	return r
@@ -68,7 +72,7 @@ func (h *Handler) upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	q := r.URL.Query()
-	v, err := h.svc.Upload(r.Context(), uid(r), q.Get("kind"), q.Get("caption"), raw)
+	v, err := h.svc.UploadWithSound(r.Context(), uid(r), q.Get("kind"), q.Get("caption"), q.Get("sound"), raw)
 	if err != nil {
 		fail(w, err)
 		return
@@ -86,7 +90,7 @@ func (h *Handler) feed(w http.ResponseWriter, r *http.Request) {
 		}
 		before = t
 	}
-	vs, err := h.svc.Feed(r.Context(), uid(r), before)
+	vs, err := h.svc.Feed(r.Context(), uid(r), before, r.URL.Query().Get("following") == "1")
 	if err != nil {
 		fail(w, err)
 		return
@@ -168,4 +172,52 @@ func (h *Handler) file(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "private, max-age=300")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(data))
+}
+
+func (h *Handler) comment(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Body string `json:"body"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		middleware.WriteError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	c, err := h.svc.Comment(r.Context(), uid(r), chi.URLParam(r, "id"), req.Body)
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	middleware.WriteJSON(w, http.StatusCreated, c)
+}
+
+func (h *Handler) comments(w http.ResponseWriter, r *http.Request) {
+	cs, err := h.svc.Comments(r.Context(), uid(r), chi.URLParam(r, "id"))
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	middleware.WriteJSON(w, http.StatusOK, map[string]any{"comments": cs})
+}
+
+func (h *Handler) removeComment(w http.ResponseWriter, r *http.Request) {
+	if err := h.svc.DeleteComment(r.Context(), uid(r), chi.URLParam(r, "cid")); err != nil {
+		fail(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) reportComment(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		middleware.WriteError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if err := h.svc.ReportComment(r.Context(), uid(r), chi.URLParam(r, "cid"), req.Reason); err != nil {
+		fail(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

@@ -68,11 +68,12 @@ func (h *Handler) start(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Title     string `json:"title"`
 		Anonymous bool   `json:"anonymous"`
+		Topic     string `json:"topic"`
 	}
 	if !decode(w, r, &req) {
 		return
 	}
-	room, join, err := h.svc.Start(r.Context(), uid(r), req.Title, req.Anonymous)
+	room, join, err := h.svc.StartWithTopic(r.Context(), uid(r), req.Title, req.Topic, req.Anonymous)
 	if err != nil {
 		fail(w, err)
 		return
@@ -81,12 +82,12 @@ func (h *Handler) start(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
-	rooms, err := h.svc.List(r.Context(), uid(r))
+	rooms, err := h.svc.ListTopic(r.Context(), uid(r), r.URL.Query().Get("topic"))
 	if err != nil {
 		fail(w, err)
 		return
 	}
-	middleware.WriteJSON(w, http.StatusOK, map[string]any{"rooms": rooms})
+	middleware.WriteJSON(w, http.StatusOK, map[string]any{"rooms": rooms, "topics": Topics})
 }
 
 func (h *Handler) join(w http.ResponseWriter, r *http.Request) {

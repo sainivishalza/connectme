@@ -21,6 +21,9 @@ function verifyAccessToken(token, secret) {
   return c;
 }
 
+const SIGNAL_KINDS = new Set(['live', 'masked', 'event', 'game']);
+const SIGNAL_TOPIC = /^(live|masked|event|game):[0-9a-fA-F-]{36}$/;
+
 function isObject(v) { return v !== null && typeof v === 'object' && !Array.isArray(v); }
 function isId(v) { return typeof v === 'string' && /^[0-9a-fA-F-]{36}$/.test(v); }
 
@@ -56,6 +59,32 @@ async function createRealtime(opts) {
     await Promise.all([pub.connect(), sub.connect()]);
     io.adapter(createAdapter(pub, sub)); // multi-node fan-out
     cleanup.push(() => pub.quit(), () => sub.quit());
+    // The Go API publishes "this topic changed" here after a write; every
+    // node forwards it to the sockets watching that topic.
+    const signals = pub.duplicate();
+    await signals.connect();
+    // At most one signal per topic every 400 ms (a busy room would otherwise
+    // make every viewer refetch on every message); the last change always
+    // goes out.
+    const lastSent = new Map(), pending = new Map();
+    const fire = (topic) => {
+      lastSent.set(topic, Date.now());
+      io.to(`sig:${topic}`).emit('signal', { topic });
+    };
+    await signals.pSubscribe('sig:*', (_msg, channel) => {
+      const topic = channel.slice(4);
+      if (!SIGNAL_TOPIC.test(topic) || pending.has(topic)) return;
+      const wait = 400 - (Date.now() - (lastSent.get(topic) || 0));
+      if (wait <= 0) return fire(topic);
+      pending.set(topic, setTimeout(() => { pending.delete(topic); fire(topic); }, wait));
+    });
+    const sweep = setInterval(() => {
+      const now = Date.now();
+      for (const [t, at] of lastSent) if (now - at > 60_000) lastSent.delete(t);
+    }, 60_000);
+    sweep.unref();
+    cleanup.push(() => { clearInterval(sweep); pending.forEach(clearTimeout); });
+    cleanup.push(() => signals.quit());
   }
 
   // Per-user (not per-socket) sliding window so extra devices cannot bypass it.
@@ -131,6 +160,7 @@ async function createRealtime(opts) {
       socket.data.token = socket.handshake.auth.token;
       socket.data.exp = c.exp * 1000;
       socket.data.checked = new Map();
+      socket.data.watching = new Set();
       next();
     } catch {
       next(new Error('unauthorized'));
@@ -180,6 +210,26 @@ async function createRealtime(opts) {
       reply({ ok: true });
     });
 
+    // watch/unwatch: "tell me when this room or game changes". The API says
+    // whether this person may watch it; the signal itself carries no data.
+    on('watch', async (p, reply) => {
+      if (!SIGNAL_KINDS.has(p.kind) || !isId(p.id)) return reply({ ok: false, error: 'invalid' });
+      if (socket.data.watching.size >= 8 && !socket.data.watching.has(`${p.kind}:${p.id}`)) return reply({ ok: false, error: 'too_many' });
+      const r = await api('GET', `/signal/${p.kind}/${p.id}/access`, socket.data.token);
+      if (r.status !== 204) return reply({ ok: false, error: ERROR_BY_STATUS[r.status] || 'internal' });
+      socket.join(`sig:${p.kind}:${p.id}`);
+      socket.data.watching.add(`${p.kind}:${p.id}`);
+      reply({ ok: true });
+    });
+
+    on('unwatch', (p, reply) => {
+      if (SIGNAL_KINDS.has(p.kind) && isId(p.id)) {
+        socket.leave(`sig:${p.kind}:${p.id}`);
+        socket.data.watching.delete(`${p.kind}:${p.id}`);
+      }
+      reply({ ok: true });
+    });
+
     on('message', async (p, reply) => {
       if (!isId(p.match_id) || typeof p.type !== 'string' || typeof p.ciphertext !== 'string') {
         return reply({ ok: false, error: 'invalid' });
@@ -223,6 +273,8 @@ async function createRealtime(opts) {
   return {
     port: httpServer.address().port,
     io,
+    // Used by tests and single-node setups without Redis.
+    signal(topic) { if (SIGNAL_TOPIC.test(topic)) io.to(`sig:${topic}`).emit('signal', { topic }); },
     async close() {
       clearInterval(sweeper);
       await new Promise((resolve) => io.close(resolve));

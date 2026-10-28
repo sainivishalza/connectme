@@ -83,6 +83,11 @@ func (m *SMTPMailer) enqueue(to, subject, body string) error {
 	return nil
 }
 
+// Send queues a plain email (used by the safety toolkit).
+func (m *SMTPMailer) Send(_ context.Context, to, subject, body string) error {
+	return m.enqueue(to, subject, body)
+}
+
 func (m *SMTPMailer) SendVerification(_ context.Context, to, token string) error {
 	return m.enqueue(to, "Verify your ConnectMe email",
 		"Welcome to ConnectMe.\r\n\r\nYour verification code is:\r\n\r\n"+token+

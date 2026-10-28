@@ -8,12 +8,15 @@ import '../../features/auth/screens/register_screen.dart';
 import '../../features/auth/screens/verify_screen.dart';
 import '../../features/chat/screens/chat_list_screen.dart';
 import '../../features/chat/screens/chat_screen.dart';
+import '../../features/chat/screens/message_search_screen.dart';
 import '../../features/discovery/screens/discover_screen.dart';
 import '../../features/group_dates/screens/browse_groups_screen.dart';
 import '../../features/calls/calls_repository.dart';
 import '../../features/calls/screens/call_screen.dart';
 import '../../features/calls/screens/incoming_call_screen.dart';
 import '../../features/games/screens/quiz_screen.dart';
+import '../../features/games/screens/truth_or_dare_screen.dart';
+import '../../features/games/screens/would_you_rather_screen.dart';
 import '../../features/forums/forums_repository.dart';
 import '../../features/forums/screens/board_screen.dart';
 import '../../features/forums/screens/forums_screen.dart';
@@ -40,16 +43,40 @@ import '../../features/group_dates/screens/group_detail_screen.dart';
 import '../../features/group_dates/screens/groups_screen.dart';
 import '../../features/hotel_mode/screens/hotel_screen.dart';
 import '../../features/payments/screens/payments_screens.dart';
+import '../../features/profile/screens/about_you_screen.dart';
 import '../../features/profile/screens/edit_profile_screen.dart';
+import '../../features/profile/screens/prompts_screen.dart';
+import '../../features/digest/unsubscribe_screen.dart';
+import '../../features/follows/screens/follows_screen.dart';
+import '../../features/investors/invest_screen.dart';
+import '../../features/games/screens/most_likely_screen.dart';
+import '../../features/games/screens/party_game_screen.dart';
+import '../../features/onboarding/welcome_screen.dart';
+import '../../features/partners/screens/event_group_screen.dart';
+import '../../features/safety/my_reports_screen.dart';
+import '../../features/safety/safety_screen.dart';
+import '../../features/settings/appearance_screen.dart';
+import '../../features/auth/screens/appeal_screen.dart';
+import '../../features/levels/screens/levels_screen.dart';
+import '../../features/payouts/payouts.dart';
+import '../../features/profile/screens/id_check_screen.dart';
+import '../../features/quiz/screens/compat_quiz_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
 import '../../shared/widgets/states.dart';
 import 'app_shell.dart';
 
 const _authPaths = {'/login', '/register', '/verify', '/forgot', '/reset'};
 
+/// Pages anyone can open without an account.
+const _publicPaths = {'/invest', '/safety/confirm', '/digest/unsubscribe', '/appeal'};
+
 /// Pure redirect rule, separated so it can be unit-tested.
 String? redirectFor(AuthStatus status, String location) {
   final isAuthPage = _authPaths.contains(location);
+  // Public pages (the invest board, e-mailed confirm and unsubscribe links) open as they are,
+  // even while the session is still being checked: bouncing through the splash
+  // route would drop the link and leave the visitor on the login page.
+  if (_publicPaths.contains(location)) return null;
   switch (status) {
     case AuthStatus.unknown:
       return location == '/' ? null : '/';
@@ -75,6 +102,14 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) => redirectFor(ref.read(authControllerProvider).status, state.uri.path),
     routes: [
       GoRoute(path: '/', builder: (_, _) => const Scaffold(body: Loader())),
+      GoRoute(path: '/digest/unsubscribe', builder: (_, s) => DigestUnsubscribeScreen(token: s.uri.queryParameters['token'] ?? '')),
+      GoRoute(path: '/safety/confirm', builder: (_, s) => ContactConfirmScreen(token: s.uri.queryParameters['token'] ?? '')),
+      GoRoute(path: '/safety/reports', builder: (_, _) => const MyReportsScreen()),
+      GoRoute(path: '/safety', builder: (_, s) => SafetyScreen(matchId: s.uri.queryParameters['match'])),
+      GoRoute(path: '/eventgroup/:id', builder: (_, s) => EventGroupScreen(eventId: s.pathParameters['id']!)),
+      GoRoute(path: '/invest', builder: (_, _) => const InvestScreen()),
+      GoRoute(path: '/appeal', builder: (_, _) => const AppealScreen()),
+      GoRoute(path: '/welcome', builder: (_, _) => const WelcomeScreen()),
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
       GoRoute(path: '/register', builder: (_, _) => const RegisterScreen()),
       GoRoute(path: '/verify', builder: (_, _) => const VerifyScreen()),
@@ -84,6 +119,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/masked', builder: (_, _) => const RandomScreen(style: 'truth')),
       GoRoute(path: '/explore', builder: (_, _) => const ExploreScreen()),
       GoRoute(path: '/communities', builder: (_, _) => const CommunitiesScreen()),
+      GoRoute(path: '/search', builder: (_, s) => MessageSearchScreen(convId: s.uri.queryParameters['conv'])),
       GoRoute(
         path: '/community/:id',
         builder: (_, s) => FeedScreen(kind: PostKind.community, community: s.extra! as Community),
@@ -95,12 +131,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(path: '/quiz/:id', builder: (_, s) => QuizScreen(matchId: s.pathParameters['id']!)),
+      GoRoute(path: '/td/:id', builder: (_, s) => TruthOrDareScreen(matchId: s.pathParameters['id']!)),
+      GoRoute(path: '/party/:id', builder: (_, s) => GroupTruthOrDareScreen(groupMatchId: s.pathParameters['id']!)),
+      GoRoute(path: '/masked-room', builder: (_, _) => const MaskedRoomScreen()),
+      GoRoute(path: '/mlt/:id', builder: (_, s) => MostLikelyScreen(groupMatchId: s.pathParameters['id']!)),
+      GoRoute(path: '/wyr/:id', builder: (_, s) => WouldYouRatherScreen(groupMatchId: s.pathParameters['id']!)),
       GoRoute(path: '/call', builder: (_, s) => CallScreen(started: s.extra! as StartedCall)),
       GoRoute(path: '/call/incoming', builder: (_, s) => IncomingCallScreen(call: s.extra! as CallInfo)),
       GoRoute(path: '/forums', builder: (_, _) => const ForumsScreen()),
       GoRoute(path: '/forums/:slug', builder: (_, s) => BoardScreen(board: s.extra! as Board)),
       GoRoute(path: '/thread/:id', builder: (_, s) => ThreadScreen(threadId: s.pathParameters['id']!)),
       GoRoute(path: '/events', builder: (_, _) => const EventsScreen()),
+      GoRoute(path: '/settings/appearance', builder: (_, _) => const AppearanceScreen()),
       GoRoute(path: '/settings/notifications', builder: (_, _) => const NotificationsScreen()),
       GoRoute(path: '/videos', builder: (_, _) => const VideoFeedScreen()),
       GoRoute(path: '/audio', builder: (_, _) => const AudioListScreen()),
@@ -120,7 +162,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => AppShell(shell: shell),
         branches: [
-          StatefulShellBranch(routes: [GoRoute(path: '/discover', builder: (_, _) => const DiscoverScreen())]),
+          StatefulShellBranch(routes: [GoRoute(path: '/discover', builder: (_, _) => const OnboardingGate(child: DiscoverScreen()))]),
           StatefulShellBranch(routes: [GoRoute(path: '/hotel', builder: (_, _) => const HotelScreen())]),
           StatefulShellBranch(routes: [
             GoRoute(
@@ -153,6 +195,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                     convId: s.pathParameters['id']!,
                     isGroup: s.uri.queryParameters['group'] == '1',
                     openGames: s.uri.queryParameters['game'] == '1',
+                    focusId: s.uri.queryParameters['focus'],
                   ),
                 ),
               ],
@@ -167,6 +210,13 @@ final routerProvider = Provider<GoRouter>((ref) {
                 GoRoute(path: 'premium', builder: (_, _) => const SubscriptionScreen()),
                 GoRoute(path: 'coins', builder: (_, _) => const CoinShopScreen()),
                 GoRoute(path: 'gifts', builder: (_, _) => const GiftsScreen()),
+                GoRoute(path: 'verify-id', builder: (_, _) => const IdCheckScreen()),
+                GoRoute(path: 'about', builder: (_, _) => const AboutYouScreen()),
+                GoRoute(path: 'prompts', builder: (_, _) => const PromptsScreen()),
+                GoRoute(path: 'quiz', builder: (_, _) => const CompatQuizScreen()),
+                GoRoute(path: 'levels', builder: (_, _) => const LevelsScreen()),
+                GoRoute(path: 'earnings', builder: (_, _) => const EarningsScreen()),
+                GoRoute(path: 'following', builder: (_, _) => const FollowsScreen()),
               ],
             ),
           ]),

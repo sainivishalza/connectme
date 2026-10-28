@@ -20,8 +20,26 @@ def _clean_tags(v: list[str]) -> list[str]:
     return out[:20]
 
 
+LIFESTYLE_VALUES = {
+    "goal": {"long_term", "short_term", "casual", "friends", "figuring_out"},
+    "kids": {"want", "dont_want", "open", "have", "unsure"},
+    "drinking": {"never", "social", "often"},
+    "smoking": {"never", "social", "often"},
+    "exercise": {"never", "sometimes", "often"},
+}
+
+
 class Person(BaseModel):
     tags: list[Tag] = Field(default_factory=list, max_length=50)
+    # What the person wants and how they live (see LIFESTYLE_VALUES). Unknown
+    # keys and values are dropped rather than rejected, so an older or newer
+    # API never breaks scoring.
+    lifestyle: dict[str, str] = Field(default_factory=dict, max_length=12)
+
+    @field_validator("lifestyle")
+    @classmethod
+    def _lifestyle(cls, v: dict[str, str]) -> dict[str, str]:
+        return {k: x for k, x in v.items() if k in LIFESTYLE_VALUES and x in LIFESTYLE_VALUES[k]}
     age: int | None = Field(default=None, ge=18, le=120)
     # Hours of day (0-23, UTC) in which the person is typically active.
     active_hours: list[int] = Field(default_factory=list, max_length=24)
@@ -51,7 +69,7 @@ class ScoreRequest(BaseModel):
 
 
 class Reason(BaseModel):
-    code: Literal["shared_interests", "similar_age", "similar_schedule", "active_conversation"]
+    code: Literal["shared_interests", "similar_age", "similar_schedule", "active_conversation", "same_goals", "lifestyle_match"]
     text: str
     weight: float
 
@@ -97,4 +115,43 @@ class SuggestRequest(BaseModel):
 class SuggestResponse(BaseModel):
     venues: list[str]
     icebreakers: list[str]
-    source: str = "ai"
+    # A short outing plan; only the language-model wingman fills it.
+    plan: list[str] = Field(default_factory=list)
+    source: str = "ai"  # "ai" (templates) or "llm"
+
+
+class ChatLine(BaseModel):
+    # "me" is the person asking; everyone else is "other". No names, no ids.
+    who: str = Field(pattern="^(me|other)$")
+    text: str = Field(min_length=1, max_length=300)
+
+
+class ReplyRequest(BaseModel):
+    lines: list[ChatLine] = Field(min_length=1, max_length=8)
+
+
+class ReplyResponse(BaseModel):
+    replies: list[str]
+    source: str = "ai"  # "ai" (templates) or "llm"
+
+
+class ScamLine(BaseModel):
+    # "me" is the person asking; everyone else is "other". No names, no ids.
+    who: str = Field(pattern="^(me|other)$")
+    text: str = Field(min_length=1, max_length=300)
+
+
+class ScamCheckRequest(BaseModel):
+    lines: list[ScamLine] = Field(min_length=1, max_length=10)
+
+
+class ScamSignal(BaseModel):
+    code: str
+    text: str
+
+
+class ScamCheckResponse(BaseModel):
+    risk: str  # low | medium | high
+    score: int
+    signals: list[ScamSignal]
+    advice: str

@@ -13,3 +13,9 @@ build/
 data/
 coverage/
 .claude/
+ops/dev/test_account_2.txt
+
+# Secrets that must never be committed
+backend/firebase-key.json
+**/firebase-key.json
+**/google-services.json

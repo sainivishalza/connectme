@@ -162,3 +162,38 @@ func TestWalletNeverGoesNegativeUnderConcurrency(t *testing.T) {
 		t.Fatalf("balance %d want 7", bal)
 	}
 }
+
+func TestReporterSeesOutcomeButNotWhoWasReported(t *testing.T) {
+	e := setup(t)
+	reporter, other, bad := e.user("Reporter"), e.user("Bystander"), e.user("Offender")
+	mod := e.newUser("moderator", true, "Mod")
+	refBad := e.refOf(bad)
+	e.register(reporter, "reporter-device-token-aaaaaaaaaaaa", "android")
+	if c, _ := e.call("POST", "/moderation/reports", map[string]any{"ref": refBad, "reason": "spam"}, reporter); c != 201 {
+		t.Fatalf("report: %d", c)
+	}
+	_, body := e.call("GET", "/moderation/reports/mine", nil, reporter)
+	s := string(body)
+	if !strings.Contains(s, `"outcome":"pending"`) || !strings.Contains(s, "spam") || strings.Contains(s, refBad) || strings.Contains(s, "Offender") {
+		t.Fatalf("pending list: %s", s)
+	}
+	// Someone else sees nothing of it.
+	if _, b := e.call("GET", "/moderation/reports/mine", nil, other); strings.Contains(string(b), "spam") {
+		t.Fatalf("leaked to another member: %s", b)
+	}
+	var id string
+	if err := e.db.QueryRow(context.Background(), `SELECT id::text FROM reports WHERE reporter_id=$1`, reporter).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	if c, _ := e.callAs("POST", "/moderation/reports/"+id+"/resolve", map[string]string{"action": "dismiss"}, mod, "moderator"); c != 204 {
+		t.Fatalf("dismiss: %d", c)
+	}
+	got := e.waitPush(1)
+	if len(got) != 1 || got[0].Msg.Data["kind"] != "report" || got[0].Msg.Data["ref"] != id ||
+		strings.Contains(got[0].Msg.Body, "Offender") || strings.Contains(got[0].Msg.Body, "spam") {
+		t.Fatalf("notification: %+v", got)
+	}
+	if _, b := e.call("GET", "/moderation/reports/mine", nil, reporter); !strings.Contains(string(b), `"outcome":"no_action"`) {
+		t.Fatalf("dismissed: %s", b)
+	}
+}

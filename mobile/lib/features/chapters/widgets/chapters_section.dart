@@ -110,7 +110,7 @@ Future<void> showChapters(BuildContext context, WidgetRef ref, String profileRef
   final chapters = await ref.read(chaptersRepositoryProvider).of(profileRef);
   if (!context.mounted) return;
   await showModalBottomSheet<void>(
-    context: context,
+    context: context, useRootNavigator: true,
     isScrollControlled: true,
     showDragHandle: true,
     builder: (c) {

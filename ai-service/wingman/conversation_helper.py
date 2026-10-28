@@ -5,8 +5,8 @@ needs no external service or API key, and it only ever sees the activity, the
 group size and public interest tags. Venue ideas are *kinds* of places, not
 named businesses, because the service is never given a location.
 
-To use a language model instead, replace `suggest` behind the same
-request/response schema; nothing else needs to change.
+These are also the fallback for the language-model wingman (wingman/agent.py),
+which main.py tries first when WINGMAN_PROVIDER=llm.
 """
 from __future__ import annotations
 

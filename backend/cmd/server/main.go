@@ -1,6 +1,7 @@
 package main
 
 import (
+	"connectme/pkg/logredact"
 	"context"
 	"errors"
 	"log/slog"
@@ -18,6 +19,7 @@ import (
 )
 
 func main() {
+	slog.SetDefault(slog.New(logredact.Wrap(slog.Default().Handler())))
 	if err := run(); err != nil {
 		slog.Error("fatal", "err", err)
 		os.Exit(1)

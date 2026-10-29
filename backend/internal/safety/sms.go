@@ -1,6 +1,7 @@
 package safety
 
 import (
+	"connectme/pkg/utils"
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
@@ -10,6 +11,7 @@ import (
 	"math/big"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -32,6 +34,10 @@ func (s *Service) SetSMS(p SMS) { s.sms = p }
 type LogSMS struct{}
 
 func (LogSMS) Send(_ context.Context, to, text string) error {
+	if os.Getenv("DEV_LOG_SECRETS") != "true" {
+		slog.Info("sms (not sent: no provider configured; set DEV_LOG_SECRETS=true to print it)", "to", utils.MaskPhone(to))
+		return nil
+	}
 	slog.Info("sms (not sent: no provider configured)", "to", to, "text", text)
 	return nil
 }

@@ -189,10 +189,23 @@ func TestAuditProductionLogsContainNoTokens(t *testing.T) {
 	if s := buf.String(); strings.Contains(s, "SECRET-TOKEN") || strings.Contains(s, "u@example.com") {
 		t.Fatalf("production mailer logged sensitive data: %s", s)
 	}
+	// Development: hidden by default, printed only when a developer opts in.
+	buf.Reset()
 	dev := auth.LogMailer{}
 	_ = dev.SendVerification(context.Background(), "u@example.com", "DEV-TOKEN")
+	if s := buf.String(); strings.Contains(s, "DEV-TOKEN") || strings.Contains(s, "u@example.com") {
+		t.Fatalf("dev mailer logged a token or address without DEV_LOG_SECRETS=true: %s", s)
+	}
+	t.Setenv("DEV_LOG_SECRETS", "true")
+	_ = dev.SendVerification(context.Background(), "u@example.com", "DEV-TOKEN")
 	if !strings.Contains(buf.String(), "DEV-TOKEN") {
-		t.Fatal("dev mailer should log the token so developers can verify accounts")
+		t.Fatal("with DEV_LOG_SECRETS=true the dev mailer should log the token so developers can verify accounts")
+	}
+	buf.Reset()
+	t.Setenv("DEV_LOG_SECRETS", "true")
+	_ = prod.SendVerification(context.Background(), "u@example.com", "SUPER-SECRET-TOKEN")
+	if strings.Contains(buf.String(), "SUPER-SECRET-TOKEN") {
+		t.Fatal("production must never log a token, even if DEV_LOG_SECRETS is set")
 	}
 }
 

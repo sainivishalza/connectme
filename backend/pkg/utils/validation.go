@@ -125,3 +125,27 @@ func HasControl(s string) bool {
 	}
 	return false
 }
+
+// MaskEmail keeps the first letter and the domain: "a***@example.com". For logs.
+func MaskEmail(s string) string {
+	at := strings.LastIndexByte(s, '@')
+	if at <= 0 {
+		return "***"
+	}
+	r := []rune(s[:at])
+	return string(r[0]) + "***" + s[at:]
+}
+
+// MaskPhone keeps only the last two digits: "***42". For logs.
+func MaskPhone(s string) string {
+	d := make([]rune, 0, len(s))
+	for _, r := range s {
+		if r >= '0' && r <= '9' {
+			d = append(d, r)
+		}
+	}
+	if len(d) < 2 {
+		return "***"
+	}
+	return "***" + string(d[len(d)-2:])
+}

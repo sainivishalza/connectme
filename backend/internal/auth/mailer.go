@@ -1,8 +1,10 @@
 package auth
 
 import (
+	"connectme/pkg/utils"
 	"context"
 	"log/slog"
+	"os"
 )
 
 // Mailer delivers account emails. Implementations must not log tokens in production.
@@ -13,12 +15,20 @@ type Mailer interface {
 }
 
 // LogMailer is the development mailer: it writes emails to the log.
-// Tokens are only logged outside production.
+// Addresses are masked and tokens and bodies stay out of the log unless a
+// developer opts in with DEV_LOG_SECRETS=true; production never logs them.
 type LogMailer struct{ Production bool }
+
+// showDetails reports whether this process may print links, tokens and bodies.
+func (m LogMailer) showDetails() bool { return !m.Production && os.Getenv("DEV_LOG_SECRETS") == "true" }
 
 func (m LogMailer) log(kind, to, token string) error {
 	if m.Production || token == "" {
 		slog.Warn("email not sent: no mail provider configured", "kind", kind)
+		return nil
+	}
+	if !m.showDetails() {
+		slog.Info("DEV email (details hidden; set DEV_LOG_SECRETS=true to print the token)", "kind", kind, "to", utils.MaskEmail(to))
 		return nil
 	}
 	slog.Info("DEV email", "kind", kind, "to", to, "token", token)
@@ -30,6 +40,10 @@ func (m LogMailer) log(kind, to, token string) error {
 func (m LogMailer) Send(_ context.Context, to, subject, body string) error {
 	if m.Production {
 		slog.Warn("email not sent: no mail provider configured", "kind", "plain")
+		return nil
+	}
+	if !m.showDetails() {
+		slog.Info("DEV email (details hidden; set DEV_LOG_SECRETS=true to print the body)", "kind", "plain", "to", utils.MaskEmail(to))
 		return nil
 	}
 	slog.Info("DEV email", "kind", "plain", "to", to, "subject", subject, "body", body)

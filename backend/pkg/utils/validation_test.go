@@ -95,3 +95,17 @@ func TestHasControl(t *testing.T) {
 		}
 	}
 }
+
+func TestMaskForLogs(t *testing.T) {
+	for in, want := range map[string]string{"anna@example.com": "a***@example.com", "李雷@example.com": "李***@example.com", "nope": "***", "@x.com": "***"} {
+		if got := MaskEmail(in); got != want {
+			t.Errorf("MaskEmail(%q) = %q, want %q", in, got, want)
+		}
+	}
+	if got := MaskPhone("+1 (555) 010-0042"); got != "***42" {
+		t.Errorf("MaskPhone = %q", got)
+	}
+	if got := MaskPhone("7"); got != "***" {
+		t.Errorf("MaskPhone short = %q", got)
+	}
+}

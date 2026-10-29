@@ -1,6 +1,7 @@
 package gifs
 
 import (
+	"connectme/pkg/safefetch"
 	"context"
 	"encoding/json"
 	"errors"
@@ -18,17 +19,29 @@ import (
 type Tenor struct {
 	Key     string
 	APIBase string // default https://tenor.googleapis.com
-	Client  *http.Client
 	// AllowHost decides which media hosts may be fetched (tests widen it).
 	AllowHost func(host string) bool
 	// AllowInsecure permits http media addresses (tests only).
 	AllowInsecure bool
+	// allowPrivate lets tests talk to servers on this machine; the address
+	// check stays on in production (see pkg/safefetch).
+	allowPrivate bool
+}
+
+// fetcher is the only way this client reaches the network: addresses are
+// checked after DNS, redirects are re-checked against AllowHost, size and time
+// are capped. Tenor's replies name the media URLs, so they are not trusted.
+func (t *Tenor) fetcher() *safefetch.Client {
+	return safefetch.New(safefetch.Options{
+		Timeout: 10 * time.Second, MaxBytes: maxGIFBytes + 1,
+		AllowHTTP: t.AllowInsecure, AllowHost: t.AllowHost, AllowPrivateNetworks: t.allowPrivate,
+	})
 }
 
 const maxGIFBytes = 3 << 20
 
 func NewTenor(key string) *Tenor {
-	return &Tenor{Key: key, APIBase: "https://tenor.googleapis.com", Client: &http.Client{Timeout: 10 * time.Second},
+	return &Tenor{Key: key, APIBase: "https://tenor.googleapis.com",
 		AllowHost: func(h string) bool { return h == "tenor.com" || strings.HasSuffix(h, ".tenor.com") }}
 }
 
@@ -51,7 +64,10 @@ func (t *Tenor) call(ctx context.Context, path string, q url.Values) (*http.Resp
 	if err != nil {
 		return nil, err
 	}
-	return t.Client.Do(req)
+	// The API address is ours (APIBase); only the media addresses it returns are
+	// restricted to Tenor's hosts, so the API call gets the address check only.
+	api := safefetch.New(safefetch.Options{Timeout: 10 * time.Second, MaxBytes: 1 << 20, AllowHTTP: t.AllowInsecure, AllowPrivateNetworks: t.allowPrivate})
+	return api.Do(req)
 }
 
 func (t *Tenor) results(resp *http.Response) ([]tenorResult, error) {
@@ -111,15 +127,7 @@ func (t *Tenor) Media(ctx context.Context, id string) ([]byte, error) {
 	if err != nil || (u.Scheme != "https" && !(u.Scheme == "http" && t.AllowInsecure)) || !t.AllowHost(u.Hostname()) {
 		return nil, errors.New("tenor returned a media address outside its own hosts")
 	}
-	mresp, err := t.Client.Get(u.String())
-	if err != nil {
-		return nil, err
-	}
-	defer mresp.Body.Close()
-	if mresp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("media answered %s", mresp.Status)
-	}
-	data, err := io.ReadAll(io.LimitReader(mresp.Body, maxGIFBytes+1))
+	data, err := t.fetcher().Get(ctx, u.String())
 	if err != nil || len(data) > maxGIFBytes || len(data) < 6 || string(data[:3]) != "GIF" {
 		return nil, errors.New("media is not a small GIF")
 	}

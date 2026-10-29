@@ -1,6 +1,7 @@
 package gifs
 
 import (
+	"net"
 	"bytes"
 	"context"
 	"image/gif"
@@ -103,6 +104,7 @@ func fakeTenor(t *testing.T, mediaURL func(base string) string, gifBody []byte) 
 	tn := NewTenor("secret-key")
 	tn.APIBase = srv.URL
 	tn.AllowInsecure = true
+	tn.allowPrivate = true // the fake Tenor listens on this machine
 	tn.AllowHost = func(h string) bool { return h == "127.0.0.1" }
 	return tn, srv, &queries
 }
@@ -152,5 +154,44 @@ func TestTenorSendsOnlyTheQueryAndAFixedClientAndOnlyFetchesAllowedMediaHosts(t 
 	huge, _, _ := fakeTenor(t, func(base string) string { return base + "/media.gif" }, append([]byte("GIF89a"), make([]byte, maxGIFBytes+10)...))
 	if _, err := huge.Media(ctx, "111"); err == nil {
 		t.Error("an oversize file was accepted")
+	}
+}
+
+// A media address on an allowed host that redirects to somewhere else must not
+// be followed: every hop is checked, not just the first.
+func TestTenorMediaRedirectsAreRevalidated(t *testing.T) {
+	g, _ := NewBuiltin().Media(context.Background(), "heart")
+	other, err := net.Listen("tcp", "127.0.0.2:0")
+	if err != nil {
+		t.Skip("cannot listen on 127.0.0.2 here")
+	}
+	hit := make(chan struct{}, 1)
+	osrv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hit <- struct{}{}
+		_, _ = w.Write(g)
+	})}
+	go osrv.Serve(other)
+	t.Cleanup(func() { osrv.Close() })
+
+	tn, srv, _ := fakeTenor(t, func(base string) string { return base + "/redirect.gif" }, g)
+	_ = srv
+	// /redirect.gif lives on the same test server and sends the client to 127.0.0.2.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/posts", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"results":[{"id":"111","media_formats":{"tinygif":{"url":"http://` + r.Host + `/redirect.gif"}}}]}`))
+	})
+	mux.HandleFunc("/redirect.gif", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "http://"+other.Addr().String()+"/stolen.gif", http.StatusFound)
+	})
+	s2 := httptest.NewServer(mux)
+	t.Cleanup(s2.Close)
+	tn.APIBase = s2.URL
+	if _, err := tn.Media(context.Background(), "111"); err == nil {
+		t.Fatal("a redirect to a host outside the allowlist was followed")
+	}
+	select {
+	case <-hit:
+		t.Fatal("the redirect target was contacted")
+	default:
 	}
 }

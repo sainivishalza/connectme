@@ -1,0 +1,23 @@
+#!/bin/sh
+# Install with: make hooks   (or: git config core.hooksPath .githooks)
+# Blocks a commit that adds a secret, or Go code that is unformatted or fails vet.
+set -e
+
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks protect --staged --redact --no-banner
+else
+  echo "pre-commit: gitleaks is not installed; install it (https://github.com/gitleaks/gitleaks) so secrets are checked before they are committed." >&2
+  echo "pre-commit: continuing without the secret scan; CI scans the full history." >&2
+fi
+
+changed=$(git diff --cached --name-only --diff-filter=ACM | grep '\.go$' || true)
+if [ -n "$changed" ]; then
+  bad=$(gofmt -l $changed 2>/dev/null | tr -d '\r' || true)
+  if [ -n "$bad" ]; then
+    echo "pre-commit: these Go files are not gofmt-formatted:" >&2
+    echo "$bad" >&2
+    echo "run: gofmt -w <file>" >&2
+    exit 1
+  fi
+  (cd backend && go vet ./...)
+fi

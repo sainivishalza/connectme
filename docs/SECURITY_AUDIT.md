@@ -69,11 +69,12 @@ Severity: P0 exploitable now, P1 serious, P2 hardening, P3 note.
 | F7 | P2 | Go 1.27.2 standard library vulnerability reachable (GO-2026-6809); `golang.org/x/net` below the fixed version. | `govulncheck` output | Upgrade the Go toolchain to 1.27.3 and `x/net` to 0.62.0. |
 | F8 | P2 | **My own earlier change:** `csam.RecordHit` bans the account but does not revoke its sessions, so the current access token works for up to 15 minutes (refresh is already blocked for banned users). | `csam/hit.go:17-47` | Revoke all sessions in the same step as the ban. |
 | F9 | P3 | Login lockout is per email: 10 bad guesses lock that address for 15 minutes, so anyone can lock out a known email. | `auth/service.go:25-26,120` | Lock on email + IP together. |
-| F10 | P3 | `GET /chat/keys/{matchID}` uses up one of the other person's one-time prekeys per call, so a match partner can drain the pool (60 calls per window). The Signal protocol still works without them, with weaker forward secrecy for that first message. | `chat/keys.go:76-100` | Lower limit for this route. |
+| F10 | P3 (withdrawn) | I said a match partner could drain someone's one-time prekeys. That was wrong: `FetchBundle` hands out at most one prekey per requester, per conversation, per day (`chat/keys.go:107-120`). I had only read the first half of the function. | `chat/keys.go:107-120` | none needed |
 | F11 | P3 | `/payments/webhook` has no rate limit (it is signature-gated). | `SECURITY_ROUTES.md` | IP limiter generous enough for Stripe. |
 | F12 | P3 | Production config does not reject a `*` CORS origin. | `config.go:148` | Validate. |
 | F13 | P3 | Grafana `admin`/`admin` in the dev monitoring compose (localhost only). | `ops/dev/monitoring/docker-compose.yml:17` | Require a variable. |
 | F14 | P3 | No `aud` claim in access tokens. | `middleware/auth.go` | Add and check. |
+| F17 | P2 | New, found while fixing the upload item: ID-check photos were stored exactly as uploaded. Only a size cap and a magic-byte check applied; no decode, no canvas limit, EXIF/GPS kept. | `idcheck/handler.go:86-101`, `idcheck/service.go` | shared validator; ID photos stored as a cleaned JPEG |
 | F16 | P3 | The staff-route test matches exact paths, so the two trailing-slash sponsor routes are not covered by the "ordinary users get 403" check. | `integration/audit_routes_test.go:152-160` | Normalize paths in the test (Phase 2 route-registry test). |
 | F15 | P3 | Dev-only mailer and SMS log tokens, bodies and phone numbers. | `auth/mailer.go:24,35`, `safety/sms.go:35` | Redact even in development. |
 
@@ -102,3 +103,71 @@ Also noted, not exploitable: end-to-end chat means the server could in principle
 ## Not covered
 
 Live cross-user attack tests (Phase 2), voice, ID-check and video upload internals, the 23 spot-checked route groups in full, Kubernetes network policies, load behaviour, `go test -race` (no C compiler here), and a gitleaks run.
+
+
+---
+
+# Phase 2: what was fixed
+
+Each fix has a test that failed before the change and passes now; the tests are in the repository. One commit per item.
+
+| Commit | Finding | What changed | Test |
+|---|---|---|---|
+| `sec(F1)` | F1 email header injection (P1) | Display names may not contain control characters; the mail writer turns control characters in From, To and Subject into spaces. A NUL in a name used to cause a 500. | `TestMessageHeadersCannotBeInjected`, `TestDisplayNameRejectsControlCharacters`, `TestHasControl` |
+| `sec(F8)` | F8 (P2) | A CSAM match now ends the member's sessions in the same step as the ban. | `TestCSAMHitEndsTheSessionImmediately` |
+| `sec(F4,F12)` | F4, F12 (P2/P3) | `TRUSTED_PROXY_CIDRS` is required in production (or the explicit value `none`); a wildcard in `APP_ALLOWED_ORIGINS` is refused. | `TestProductionSafetyRules` cases |
+| `sec(F13)` | F13 (P3) | Grafana's admin password is a required variable, not `admin`. | `docker compose config` refuses without it |
+| `sec(F2,F14)` | F2 (P2), F14 (P3) | If the revocation lookup is down, staff tokens and every write are refused (member reads continue). Access tokens carry `aud=connectme-api`; the API and the realtime relay both require it. | `TestSessionRevocationOutage`, `TestAccessTokenAudience`, relay audience cases |
+| `sec(F9)` | F9 (P3) | Login lockout is per email and address (limit 10) plus per email alone (limit 50): the guesser is locked out, not the owner. | `TestAttackerCannotLockTheOwnerOut`, `TestGuessingFromManyAddressesStillLocksTheEmail` |
+| `sec(F11)` | F11 (P3) | The public Stripe webhook is limited to 600 requests a minute per address. | `TestWebhookIsRateLimitedPerAddress` |
+| `sec(F15)` | F15 (P3) | The dev mailer and SMS sender log masked values unless `DEV_LOG_SECRETS=true`; a `slog` wrapper redacts fields named like secrets, ciphertext or bodies. | `TestRequestsDoNotLogSecrets`, `logredact` tests |
+| `sec(F3)` | F3 (P2) | Relay: sockets are closed after token expiry plus a 30 second grace period, capped at 5 per user per node, connections are limited per address, and the budgets live in Redis (shared by all nodes, fail closed). | 5 new relay tests including a two-node Redis test |
+| `sec(F7)` | F7 (P2) | Go 1.27.3 and `golang.org/x/net` 0.62.0. | `govulncheck`: 0 reachable vulnerabilities |
+| `sec(#13)` | mass assignment | Every request body is decoded with unknown fields refused (five decoders fixed, new `middleware.DecodeStrict`). | `TestEveryRequestDecoderRefusesUnknownFields` (scans the source) |
+| `sec(F16)` | F16 and the route-registry guardrail | A new route cannot be added without a security decision; the older staff-route test now matches trailing-slash paths. | `TestRouteRegistry` |
+| `sec(#5)` | BOLA | 35 routes tried as a stranger, as a member the owner blocked, and anonymously: 404 or 401 every time. | `TestCrossUserAccessIsRefused` (a mutation check proved it fails when a participant check is removed) |
+| `sec(#4,F17)` | uploads (P2) | `pkg/uploadcheck`: one validator for profile photos and ID-check photos. | `TestIDCheckImagesLoseTheirLocationData`, `TestIDCheckRefusesAnImageThatIsAPixelBomb`, package tests |
+| `sec(#16)` | SSRF guardrail | `pkg/safefetch`: dial-time address check, redirect re-validation, https only, size and time caps; the Tenor client uses it. | `TestTenorMediaRedirectsAreRevalidated`, safefetch tests |
+| `sec(#18)` | default credentials | Production refuses weak, short, default or unencrypted database credentials and a short AI key. | 8 new config cases |
+| `sec(#20)` | dependencies | `geolocator`, `go_router`, `livekit_client`, `flutter_webrtc` patch updates. | analyze and 315 tests |
+
+## Before and after, item by item
+
+| # | Item | Before | After |
+|---|---|---|---|
+| 1 | Injection | PASS | PASS |
+| 2 | XSS and email | PASS, one related finding | PASS (F1 fixed) |
+| 3 | CSRF | PASS | PASS |
+| 4 | Uploads | PASS for photos; ID photos stored raw | PASS, one validator for both (F17 fixed) |
+| 5 | BOLA | PASS (read in code) | PASS, now proven by a 35-route cross-user suite |
+| 6 | Rate limiting | PARTIAL | relay budgets shared and fail closed (F3), proxy setting required (F4), webhook limited (F11) |
+| 7 | JWT | PASS with gaps | audience added (F14); revocation outage fails closed for staff and writes (F2) |
+| 8 | Secrets | PASS | PASS (regex scan of every commit: 0 hits; gitleaks added to CI, not run locally) |
+| 9 | Passwords and reset | PASS | PASS |
+| 10 | MFA | none | design written, waiting for your approval (`docs/SECURITY_MFA_DESIGN.md`) |
+| 11 | CORS | PASS with a gap | wildcard refused in production (F12) |
+| 12 | Token storage | PASS (web note) | unchanged; the web build's browser storage is a known limit |
+| 13 | Permissions and mass assignment | PASS | strict decoding everywhere, enforced by a test |
+| 14 | Row-level security | FAIL | design written, waiting for your approval (`docs/SECURITY_RLS_DESIGN.md`) |
+| 15 | Webhooks | PASS | PASS, plus a rate limit |
+| 16 | SSRF | PASS / N/A | PASS, shared safe-fetch client in place |
+| 17 | Debug exposure | PASS | PASS |
+| 18 | Default credentials | MOSTLY PASS | PASS (Grafana, database and key checks) |
+| 19 | Logs | PASS in production | PASS, now enforced by a log-capture test and a redacting handler |
+| 20 | Dependencies | FAIL (minor) | Go, Python and Node clean; one unfixable advisory in `x/crypto` that our code does not call |
+
+## Not fixed, and why
+
+- **MFA (F6) and the database role / row-level security (F5):** your rules say stop and show the design first. Both designs are written; nothing was built.
+- **`golang.org/x/crypto` GO-2026-5932:** no fixed version exists; `govulncheck` shows our code does not call it.
+- **`go test -race`:** cannot run on this Windows machine (no C compiler). It is in the CI job and in `make check`; I have not seen it pass.
+- **gitleaks:** not installed here. A regex scan of every commit found nothing; the CI job runs the real tool.
+- **Branch protection:** the CI jobs are defined, but "a failing job blocks the merge" is a GitHub setting you must switch on for `main`.
+- **Not touched:** voice-intro uploads, and the Flutter web build's token storage.
+
+## Deployment notes
+
+- Access tokens issued before this release lack the new `aud` claim, so every signed-in member is refreshed once, silently, within 15 minutes of going live.
+- Production needs `TRUSTED_PROXY_CIDRS` (or `none`), strong database passwords, and a 16-character-or-longer `AI_SERVICE_KEY`.
+- Behind a load balancer also set `REALTIME_TRUST_PROXY=true` for the relay, otherwise its per-address limit sees only the balancer.
+- `DEV_LOG_SECRETS=true` is for a developer machine only. Your local `.env` already has `MODERATION_DEV_BYPASS=true`.

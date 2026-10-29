@@ -11,10 +11,15 @@ import (
 
 // RecordHit handles a positive match. It never receives or stores the image
 // bytes beyond hashing them: it writes a csam_hits record (who, what hash,
-// when, the provider's reference), suspends the account and opens a report so
-// staff are alerted. Nothing is deleted; legal counsel decides reporting and
+// when, the provider's reference), suspends the account, ends its sessions and opens a
+// report so staff are alerted. Nothing is deleted; legal counsel decides reporting and
 // retention (docs/CSAM_RUNBOOK.md).
-func RecordHit(ctx context.Context, db *pgxpool.Pool, image []byte, v Verdict, meta ScanMeta) error {
+// SessionRevoker ends every session of a user (satisfied by *auth.TokenStore).
+type SessionRevoker interface {
+	RevokeAllForUser(ctx context.Context, userID string) error
+}
+
+func RecordHit(ctx context.Context, db *pgxpool.Pool, revoker SessionRevoker, image []byte, v Verdict, meta ScanMeta) error {
 	sum := sha256.Sum256(image)
 	hash := hex.EncodeToString(sum[:])
 	tx, err := db.Begin(ctx)
@@ -39,5 +44,13 @@ func RecordHit(ctx context.Context, db *pgxpool.Pool, image []byte, v Verdict, m
 		return err
 	}
 	slog.Error("csam: match recorded, account suspended", "user", meta.UserID, "source", meta.Source)
+	// The ban is committed; now end the sessions so tokens issued earlier stop
+	// working at once instead of when they expire.
+	if revoker != nil {
+		if err := revoker.RevokeAllForUser(ctx, meta.UserID); err != nil {
+			slog.Error("csam: could not revoke sessions after a match", "user", meta.UserID, "err", err)
+			return err
+		}
+	}
 	return nil
 }

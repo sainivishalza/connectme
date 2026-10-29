@@ -1,6 +1,7 @@
 package users
 
 import (
+	"connectme/internal/csam"
 	"context"
 	"errors"
 	"regexp"
@@ -29,6 +30,7 @@ type Service struct {
 
 	checker ContentChecker // optional AI moderation
 	devBypass bool // development only: screening failures let content through
+	revoker   csam.SessionRevoker
 }
 
 func NewService(db *pgxpool.Pool, media MediaStore, scan MediaScanner) *Service {

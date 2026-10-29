@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"context"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"connectme/internal/csam"
 	"connectme/internal/server"
 	"connectme/pkg/middleware"
 )
@@ -172,5 +174,32 @@ func TestAnImageNoModelLookedAtIsRefused(t *testing.T) {
 	}
 	if n := e.count(`SELECT jsonb_array_length(photos) FROM profiles WHERE user_id=$1`, u); n != 0 {
 		t.Fatalf("an unscreened photo was stored: %d", n)
+	}
+}
+
+type hitScanner struct{}
+
+func (hitScanner) Scan(context.Context, []byte, csam.ScanMeta) (csam.Verdict, error) {
+	return csam.Verdict{Match: true, Reference: "test-hit"}, nil
+}
+
+// A scanner match suspends the account AND ends its sessions: a token issued
+// before the hit must stop working at once, not when it expires.
+func TestCSAMHitEndsTheSessionImmediately(t *testing.T) {
+	e := setup(t)
+	e.deps.CSAM = hitScanner{}
+	e.h = server.New(e.deps).Handler
+	u := e.user("Flagged")
+	old := e.tokenFor(u, "user")
+	if rr := e.fire("GET", "/users/me", nil, old, nil); rr.Code != 200 {
+		t.Fatalf("token before the hit: %d", rr.Code)
+	}
+	time.Sleep(1100 * time.Millisecond) // session cutoffs have one-second resolution
+
+	if c := uploadPhoto(e, u, jpegBytesFor(t)); c != 422 {
+		t.Fatalf("matching upload: want 422, got %d", c)
+	}
+	if rr := e.fire("GET", "/users/me", nil, old, nil); rr.Code != 401 {
+		t.Fatalf("token issued before the hit still works: %d", rr.Code)
 	}
 }

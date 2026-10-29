@@ -128,7 +128,7 @@ func (s *Service) UploadPhoto(ctx context.Context, userID string, raw []byte) (*
 		return nil, s.scanFailed("photo_scan", err)
 	}
 	if verdict.Match {
-		if err := csam.RecordHit(ctx, s.db, raw, verdict, scanMeta); err != nil {
+		if err := csam.RecordHit(ctx, s.db, s.revoker, raw, verdict, scanMeta); err != nil {
 			slog.Error("csam: could not record a match", "err", err)
 		}
 		return nil, ErrRejectedMedia

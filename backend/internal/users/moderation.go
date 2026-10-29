@@ -1,6 +1,7 @@
 package users
 
 import (
+	"connectme/internal/csam"
 	"context"
 	"encoding/json"
 	"errors"
@@ -25,6 +26,9 @@ type ContentChecker interface {
 
 // SetChecker installs content screening.
 func (s *Service) SetChecker(c ContentChecker) { s.checker = c }
+
+// SetSessionRevoker lets a scanner match end the member's sessions.
+func (s *Service) SetSessionRevoker(r csam.SessionRevoker) { s.revoker = r }
 
 // SetDevBypass lets content through unscreened when screening cannot run.
 // It exists for development and tests only: config refuses it in production.

@@ -55,6 +55,7 @@ type Service struct {
 	db      *pgxpool.Pool
 	store   Store
 	scanner Scanner
+	revoker csam.SessionRevoker
 	now     func() time.Time
 }
 
@@ -180,7 +181,7 @@ func (s *Service) Submit(ctx context.Context, userID string, idPhoto, selfie []b
 		}
 		if verdict.Match {
 			slog.Error("idcheck: known-abuse match, upload blocked", "check", checkID)
-			if err := csam.RecordHit(ctx, s.db, img, verdict, meta); err != nil {
+			if err := csam.RecordHit(ctx, s.db, s.revoker, img, verdict, meta); err != nil {
 				slog.Error("csam: could not record a match", "err", err)
 			}
 			return users.ValidationError{Msg: "upload rejected"}
@@ -440,3 +441,6 @@ func (s *Service) PurgeFiles(ctx context.Context, userID string) error {
 	}
 	return nil
 }
+
+// SetSessionRevoker lets a scanner match end the member's sessions.
+func (s *Service) SetSessionRevoker(r csam.SessionRevoker) { s.revoker = r }

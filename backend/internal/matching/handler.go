@@ -205,7 +205,7 @@ func (h *Handler) proposeReveal(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Hours int `json:"hours"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := middleware.DecodeStrict(r, &req); err != nil {
 		middleware.WriteError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}

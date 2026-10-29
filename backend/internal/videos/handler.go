@@ -180,7 +180,7 @@ func (h *Handler) comment(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Body string `json:"body"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := middleware.DecodeStrict(r, &req); err != nil {
 		middleware.WriteError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -213,7 +213,7 @@ func (h *Handler) reportComment(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Reason string `json:"reason"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := middleware.DecodeStrict(r, &req); err != nil {
 		middleware.WriteError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}

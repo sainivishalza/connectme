@@ -8,7 +8,6 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -206,7 +205,7 @@ func Routes(svc *Service, rdb *redis.Client, secret []byte) http.Handler {
 		var req struct {
 			Enabled *bool `json:"enabled"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Enabled == nil {
+		if err := middleware.DecodeStrict(r, &req); err != nil || req.Enabled == nil {
 			middleware.WriteError(w, http.StatusBadRequest, "enabled is required")
 			return
 		}
@@ -220,7 +219,7 @@ func Routes(svc *Service, rdb *redis.Client, secret []byte) http.Handler {
 		var req struct {
 			Token string `json:"token"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err := middleware.DecodeStrict(r, &req); err != nil {
 			middleware.WriteError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}

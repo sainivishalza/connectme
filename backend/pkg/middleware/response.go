@@ -23,3 +23,13 @@ func WriteModerationUnavailable(w http.ResponseWriter) {
 	w.Header().Set("Retry-After", "5")
 	WriteError(w, http.StatusServiceUnavailable, "moderation_unavailable")
 }
+
+// DecodeStrict decodes a JSON request body into v and refuses unknown fields,
+// so a client cannot send a field the struct does not declare (role, tier,
+// coins, is_verified...). Use it, or a decoder with DisallowUnknownFields, for
+// every request body.
+func DecodeStrict(r *http.Request, v any) error {
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	return dec.Decode(v)
+}

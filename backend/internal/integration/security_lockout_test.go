@@ -87,3 +87,20 @@ func TestWebhookIsRateLimitedPerAddress(t *testing.T) {
 	}
 	t.Fatalf("700 webhook calls from one address were never limited (last status %d)", last)
 }
+
+// A field the request struct does not declare is refused, not ignored: here the
+// five handlers that used to ignore extras.
+func TestUnknownFieldsAreRefused(t *testing.T) {
+	e := setup(t)
+	u := e.user("Strict Fields")
+	for _, c := range []struct{ method, path string }{
+		{"PUT", "/digest/me"},
+		{"POST", "/videos/" + sampleUUID + "/comments"},
+		{"POST", "/videos/" + sampleUUID + "/report"},
+	} {
+		code, body := e.call(c.method, c.path, map[string]any{"enabled": true, "body": "x", "reason": "x", "role": "admin", "coins": 9999}, u)
+		if code != 400 && code != 422 {
+			t.Errorf("%s %s with extra fields: want 400/422, got %d %s", c.method, c.path, code, body)
+		}
+	}
+}

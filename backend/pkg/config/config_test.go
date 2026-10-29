@@ -12,7 +12,7 @@ func setEnv(t *testing.T, kv map[string]string) {
 	t.Cleanup(func() { ImplementedCSAMProviders = old })
 	for _, k := range []string{"ENV", "POSTGRES_URL", "REDIS_URL", "MONGO_URL", "JWT_SECRET",
 		"JWT_ACCESS_EXPIRY", "JWT_REFRESH_EXPIRY", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "APP_ALLOWED_ORIGINS",
-		"SMTP_HOST", "SMTP_PORT", "SMTP_FROM", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_ALLOW_PLAINTEXT", "LIVEKIT_URL", "CSAM_PROVIDER", "AI_SERVICE_URL", "AI_SERVICE_KEY", "MODERATION_DEV_BYPASS", "AI_TEXT_TIMEOUT_MS", "AI_IMAGE_TIMEOUT_MS", "ENABLE_VIDEO", "VIDEO_SCANNER", "VIDEO_SCANNER_URL", "VIDEO_SCANNER_KEY", "PUSH_PROVIDER", "FCM_PROJECT_ID", "FIREBASE_CREDENTIALS"} {
+		"SMTP_HOST", "SMTP_PORT", "SMTP_FROM", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_ALLOW_PLAINTEXT", "LIVEKIT_URL", "CSAM_PROVIDER", "AI_SERVICE_URL", "AI_SERVICE_KEY", "MODERATION_DEV_BYPASS", "AI_TEXT_TIMEOUT_MS", "AI_IMAGE_TIMEOUT_MS", "TRUSTED_PROXY_CIDRS", "ENABLE_VIDEO", "VIDEO_SCANNER", "VIDEO_SCANNER_URL", "VIDEO_SCANNER_KEY", "PUSH_PROVIDER", "FCM_PROJECT_ID", "FIREBASE_CREDENTIALS"} {
 		t.Setenv(k, "")
 	}
 	for k, v := range kv {
@@ -41,6 +41,7 @@ func prodOK(t *testing.T) map[string]string {
 	m["SMTP_HOST"], m["SMTP_FROM"] = "smtp.example.com", "ConnectMe <no-reply@example.com>"
 	m["AI_SERVICE_URL"], m["AI_SERVICE_KEY"] = "http://ai-service:8000", "k"
 	m["CSAM_PROVIDER"] = "photodna"
+	m["TRUSTED_PROXY_CIDRS"] = "10.0.0.0/8"
 	return m
 }
 
@@ -85,6 +86,7 @@ func TestProductionRequiresRealEmailDelivery(t *testing.T) {
 		m["STRIPE_WEBHOOK_SECRET"] = "whsec_x"
 		m["AI_SERVICE_URL"], m["AI_SERVICE_KEY"] = "http://ai-service:8000", "k"
 		m["CSAM_PROVIDER"] = "photodna"
+		m["TRUSTED_PROXY_CIDRS"] = "10.0.0.0/8"
 		return m
 	}
 	setEnv(t, prod())
@@ -134,6 +136,7 @@ func TestVideoScannerConfiguration(t *testing.T) {
 		m["STRIPE_WEBHOOK_SECRET"] = "whsec_x"
 		m["AI_SERVICE_URL"], m["AI_SERVICE_KEY"] = "http://ai-service:8000", "k"
 		m["CSAM_PROVIDER"] = "photodna"
+		m["TRUSTED_PROXY_CIDRS"] = "10.0.0.0/8"
 		m["SMTP_HOST"], m["SMTP_FROM"] = "smtp.example.com", "ConnectMe <no-reply@example.com>"
 		m["ENABLE_VIDEO"] = "true"
 		return m
@@ -224,6 +227,10 @@ func TestProductionSafetyRules(t *testing.T) {
 		{"dev bypass on", func(m map[string]string) { m["MODERATION_DEV_BYPASS"] = "true" }, "MODERATION_DEV_BYPASS must not be set"},
 		{"jwt secret placeholder", func(m map[string]string) { m["JWT_SECRET"] = "change-me" + strings.Repeat("x", 40) }, "JWT_SECRET"},
 		{"jwt secret short", func(m map[string]string) { m["JWT_SECRET"] = "short" }, "JWT_SECRET"},
+		{"trusted proxies missing", func(m map[string]string) { delete(m, "TRUSTED_PROXY_CIDRS") }, "TRUSTED_PROXY_CIDRS is required"},
+		{"trusted proxies explicitly none", func(m map[string]string) { m["TRUSTED_PROXY_CIDRS"] = "none" }, ""},
+		{"trusted proxies invalid", func(m map[string]string) { m["TRUSTED_PROXY_CIDRS"] = "not-a-cidr" }, "TRUSTED_PROXY_CIDRS"},
+		{"cors wildcard", func(m map[string]string) { m["APP_ALLOWED_ORIGINS"] = "*" }, "APP_ALLOWED_ORIGINS"},
 		{"ENV unset", func(m map[string]string) { delete(m, "ENV"); delete(m, "CSAM_PROVIDER") }, "CSAM_PROVIDER"},
 	}
 	for _, c := range cases {

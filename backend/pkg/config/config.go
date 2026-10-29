@@ -75,6 +75,7 @@ type Config struct {
 	GIFProvider         string // builtin | tenor | none
 	TenorAPIKey         string
 	TrustedProxies      []string // CIDRs/IPs of our load balancers (X-Forwarded-For is honoured only from these)
+	TrustedProxiesSet   bool     // TRUSTED_PROXY_CIDRS was given (a list, or "none")
 }
 
 // IsProduction is true for every ENV except "development" and "test",
@@ -167,8 +168,12 @@ func Load() (Config, error) {
 		CheckoutSuccessURL:  get("CHECKOUT_SUCCESS_URL", "connectme://payments/success"),
 		CheckoutCancelURL:   get("CHECKOUT_CANCEL_URL", "connectme://payments/cancel"),
 	}
+	// TRUSTED_PROXY_CIDRS=none says "no load balancer in front of the API"; it is
+	// an explicit choice, not a blank, because a blank behind a balancer makes
+	// every member share the balancer's address (see validate).
+	c.TrustedProxiesSet = strings.TrimSpace(os.Getenv("TRUSTED_PROXY_CIDRS")) != ""
 	for _, p := range strings.Split(os.Getenv("TRUSTED_PROXY_CIDRS"), ",") {
-		if p = strings.TrimSpace(p); p != "" {
+		if p = strings.TrimSpace(p); p != "" && !strings.EqualFold(p, "none") {
 			c.TrustedProxies = append(c.TrustedProxies, p)
 		}
 	}
@@ -222,6 +227,14 @@ func (c Config) validate() []error {
 		}
 		if len(c.AllowedOrigins) == 0 {
 			errs = append(errs, errors.New("APP_ALLOWED_ORIGINS is required in production"))
+		}
+		for _, o := range c.AllowedOrigins {
+			if strings.Contains(o, "*") {
+				errs = append(errs, fmt.Errorf("APP_ALLOWED_ORIGINS must list exact origins, not %q", o))
+			}
+		}
+		if !c.TrustedProxiesSet {
+			errs = append(errs, errors.New("TRUSTED_PROXY_CIDRS is required in production: list the load balancers' CIDRs, or set it to \"none\" if the API is reached directly (otherwise every member shares one address and the per-IP limits lock everyone out together)"))
 		}
 		if c.AIServiceURL == "" {
 			errs = append(errs, errors.New("AI_SERVICE_URL is required in production (content moderation fails closed without it)"))

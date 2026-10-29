@@ -84,6 +84,11 @@ func setup(t *testing.T) *env {
 }
 
 func (e *env) post(path string, body any, bearer string) (int, map[string]any) {
+	return e.postFrom("", path, body, bearer)
+}
+
+// postFrom is post from a fixed client address (empty = a random one).
+func (e *env) postFrom(ip, path string, body any, bearer string) (int, map[string]any) {
 	b, _ := json.Marshal(body)
 	req := httptest.NewRequest("POST", path, bytes.NewReader(b))
 	req.Header.Set("Content-Type", "application/json")
@@ -93,6 +98,9 @@ func (e *env) post(path string, body any, bearer string) (int, map[string]any) {
 	// Random client IP from 10.0.0.0/8 so per-IP limits (which persist in
 	// Redis across runs) never interfere with the logic under test.
 	req.RemoteAddr = fmt.Sprintf("10.%d.%d.%d:1", rand.Intn(256), rand.Intn(256), rand.Intn(256))
+	if ip != "" {
+		req.RemoteAddr = ip + ":1"
+	}
 	rec := httptest.NewRecorder()
 	e.h.ServeHTTP(rec, req)
 	var out map[string]any
@@ -217,11 +225,13 @@ func TestLoginLockoutAndBan(t *testing.T) {
 	email := uniqueEmail("lock")
 	e.post("/register", RegisterRequest{Email: email, Password: goodPW, DateOfBirth: "1990-05-05"}, "")
 
+	// The lockout is per email AND client address: the guesser (one address) is
+	// locked out, and the right password is refused for them while it lasts.
+	guesser := fmt.Sprintf("10.%d.%d.%d", rand.Intn(256), rand.Intn(256), rand.Intn(256))
 	for i := 0; i < maxLoginFailures; i++ {
-		e.post("/login", LoginRequest{Email: email, Password: "Wrong-Pass-123!"}, "")
+		e.postFrom(guesser, "/login", LoginRequest{Email: email, Password: "Wrong-Pass-123!"}, "")
 	}
-	// Even the right password is refused while locked.
-	if c, _ := e.post("/login", LoginRequest{Email: email, Password: goodPW}, ""); c != 429 {
+	if c, _ := e.postFrom(guesser, "/login", LoginRequest{Email: email, Password: goodPW}, ""); c != 429 {
 		t.Fatalf("locked account: got %d want 429", c)
 	}
 

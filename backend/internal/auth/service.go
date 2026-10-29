@@ -22,7 +22,8 @@ import (
 
 const (
 	bcryptCost       = 12
-	maxLoginFailures = 10
+	maxLoginFailures = 10 // per email AND address: locks the guesser, not the owner
+	maxLoginFailuresPerEmail = 50 // per email from anywhere: stops guessing spread over many addresses
 	loginFailWindow  = 15 * time.Minute
 	verifyTokenTTL   = 24 * time.Hour
 	resetTokenTTL    = time.Hour
@@ -114,10 +115,18 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) error {
 // (unknown email, bad password, banned) return the same error.
 func (s *Service) Login(ctx context.Context, req LoginRequest) (*LoginResponse, error) {
 	email, emailErr := utils.NormalizeEmail(req.Email)
-	failKey := "loginfail:" + hashToken(email)
+	// Two counters. One per (email, client address) locks out whoever is
+	// guessing without letting a stranger lock the real owner out; one per
+	// email alone, with a much higher limit, still stops a guess run that is
+	// spread over many addresses.
+	ipKey := "loginfail:ip:" + hashToken(email+"|"+clientIPFrom(ctx))
+	emailKey := "loginfail:" + hashToken(email)
 
 	if emailErr == nil {
-		if n, _ := s.rdb.Get(ctx, failKey).Int(); n >= maxLoginFailures {
+		if n, _ := s.rdb.Get(ctx, ipKey).Int(); n >= maxLoginFailures {
+			return nil, ErrTooManyAttempts
+		}
+		if n, _ := s.rdb.Get(ctx, emailKey).Int(); n >= maxLoginFailuresPerEmail {
 			return nil, ErrTooManyAttempts
 		}
 	}
@@ -130,7 +139,8 @@ func (s *Service) Login(ctx context.Context, req LoginRequest) (*LoginResponse, 
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		_ = bcrypt.CompareHashAndPassword(dummyHash, []byte(req.Password))
-		s.noteFailure(ctx, failKey, emailErr)
+		s.noteFailure(ctx, ipKey, emailErr)
+		s.noteFailure(ctx, emailKey, emailErr)
 		metrics.Event("login_failed")
 		return nil, ErrInvalidCredentials
 	}
@@ -138,11 +148,12 @@ func (s *Service) Login(ctx context.Context, req LoginRequest) (*LoginResponse, 
 		return nil, err
 	}
 	if bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(req.Password)) != nil || u.IsBanned {
-		s.noteFailure(ctx, failKey, nil)
+		s.noteFailure(ctx, ipKey, nil)
+		s.noteFailure(ctx, emailKey, nil)
 		metrics.Event("login_failed")
 		return nil, ErrInvalidCredentials
 	}
-	_ = s.rdb.Del(ctx, failKey).Err()
+	_ = s.rdb.Del(ctx, ipKey).Err()
 	metrics.Event("login_ok")
 
 	pair, err := s.issuePair(ctx, u.ID, u.Role, "")
@@ -303,4 +314,18 @@ func (s *Service) identityBanned(ctx context.Context, email string) bool {
 		return false
 	}
 	return banned
+}
+
+type clientIPKey struct{}
+
+// WithClientIP records the caller's address for the login lockout.
+func WithClientIP(ctx context.Context, ip string) context.Context {
+	return context.WithValue(ctx, clientIPKey{}, ip)
+}
+
+func clientIPFrom(ctx context.Context) string {
+	if ip, ok := ctx.Value(clientIPKey{}).(string); ok && ip != "" {
+		return ip
+	}
+	return "unknown"
 }

@@ -95,7 +95,7 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
-	res, err := h.svc.Login(r.Context(), req)
+	res, err := h.svc.Login(WithClientIP(r.Context(), middleware.ClientIP(r)), req)
 	if err != nil {
 		fail(w, err)
 		return

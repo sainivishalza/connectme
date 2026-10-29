@@ -10,7 +10,8 @@ const SECRET = 's'.repeat(40);
 const MATCH = '11111111-1111-1111-1111-111111111111';
 const sign = (sub, opts = {}) =>
   jwt.sign({ typ: 'access', ...opts.claims }, opts.secret || SECRET,
-    { algorithm: 'HS256', issuer: 'connectme', subject: sub, expiresIn: opts.expiresIn ?? 60 });
+    { algorithm: 'HS256', issuer: 'connectme', subject: sub, expiresIn: opts.expiresIn ?? 60,
+      ...(opts.audience === null ? {} : { audience: opts.audience || 'connectme-api' }) });
 
 // A stand-in for the Go API: membership and message persistence.
 function startApi() {
@@ -76,6 +77,8 @@ test('rejects missing, forged, expired and alg-none tokens', async (t) => {
     expired: sign('alice', { expiresIn: -10 }),
     'alg none': none,
     'refresh-typed': sign('alice', { claims: { typ: 'refresh' } }),
+    'no audience': sign('alice', { audience: null }),
+    'another audience': sign('alice', { audience: 'someone-else' }),
   };
   for (const [name, token] of Object.entries(cases)) {
     await assert.rejects(h.ready(h.client(token)), /unauthorized/, name);

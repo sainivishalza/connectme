@@ -9,6 +9,7 @@ const jwt = require('jsonwebtoken');
 const { Server } = require('socket.io');
 
 const ISSUER = 'connectme';
+const AUDIENCE = 'connectme-api'; // must match the API's access-token audience
 const ERROR_BY_STATUS = {
   400: 'invalid', 401: 'unauthorized', 403: 'forbidden', 404: 'not_found',
   413: 'too_large', 422: 'invalid', 429: 'rate_limited',
@@ -16,7 +17,7 @@ const ERROR_BY_STATUS = {
 
 function verifyAccessToken(token, secret) {
   if (typeof token !== 'string' || token.length === 0 || token.length > 4096) throw new Error('bad token');
-  const c = jwt.verify(token, secret, { algorithms: ['HS256'], issuer: ISSUER });
+  const c = jwt.verify(token, secret, { algorithms: ['HS256'], issuer: ISSUER, audience: AUDIENCE });
   if (c.typ !== 'access' || typeof c.sub !== 'string' || !c.sub) throw new Error('bad token');
   return c;
 }

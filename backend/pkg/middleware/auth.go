@@ -16,6 +16,7 @@ import (
 
 const (
 	jwtIssuer       = "connectme"
+	jwtAudience     = "connectme-api" // access tokens are for this API (and the relay that shares the secret)
 	tokenTypeAccess = "access"
 )
 
@@ -52,6 +53,7 @@ func SignAccessToken(secret []byte, userID, role string, ttl time.Duration) (str
 		Type: tokenTypeAccess,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    jwtIssuer,
+			Audience:  jwt.ClaimStrings{jwtAudience},
 			Subject:   userID,
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
@@ -66,6 +68,7 @@ func ParseAccessToken(secret []byte, raw string) (*Claims, error) {
 	tok, err := jwt.ParseWithClaims(raw, &c, func(*jwt.Token) (any, error) { return secret, nil },
 		jwt.WithValidMethods([]string{"HS256"}),
 		jwt.WithIssuer(jwtIssuer),
+		jwt.WithAudience(jwtAudience),
 		jwt.WithExpirationRequired(),
 	)
 	if err != nil || !tok.Valid {
@@ -98,10 +101,17 @@ func Auth(secret []byte) func(http.Handler) http.Handler {
 					WriteError(w, http.StatusUnauthorized, "unauthorized")
 					return
 				}
-				// A lookup failure fails open (an outage must not sign everyone
-				// out) and is counted; a revoked session is refused at once.
+				// If the revocation lookup is down we cannot tell whether this
+				// token was revoked. Plain member reads keep working (an outage
+				// must not sign everyone out and a read only shows what they
+				// could already see); anything that changes data, and every
+				// staff token, is refused. The outage is counted either way.
 				if cut, err := (*fn)(r.Context(), c.Subject); err != nil {
 					metrics.Event("session_cutoff_unavailable")
+					if c.Role == "moderator" || c.Role == "admin" || (r.Method != http.MethodGet && r.Method != http.MethodHead) {
+						WriteError(w, http.StatusServiceUnavailable, "service unavailable")
+						return
+					}
 				} else if !cut.IsZero() && c.IssuedAt.Unix() < cut.Unix() {
 					WriteError(w, http.StatusUnauthorized, "unauthorized")
 					return

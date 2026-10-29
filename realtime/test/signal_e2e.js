@@ -8,7 +8,7 @@ const { io } = require('socket.io-client');
 try { process.loadEnvFile('../.env'); } catch { /* optional */ }
 
 const [match, user] = process.argv.slice(2);
-const token = jwt.sign({ typ: 'access' }, process.env.JWT_SECRET, { algorithm: 'HS256', issuer: 'connectme', subject: user, expiresIn: 120 });
+const token = jwt.sign({ typ: 'access' }, process.env.JWT_SECRET, { algorithm: 'HS256', issuer: 'connectme', audience: 'connectme-api', subject: user, expiresIn: 120 });
 const api = process.env.API_BASE || 'http://localhost:8080';
 const s = io('http://localhost:3001', { auth: { token }, transports: ['websocket'], reconnection: false });
 const fail = (m) => { console.error('FAIL:', m); process.exit(1); };

@@ -46,3 +46,21 @@ Each item ships with tests and a note in `docs/DECISIONS.md`.
 
 Still needs outside help: real phones, a native-speaker review of Hindi and Spanish, a lawyer for the investor page and payouts, a moderation team, SMTP/push/LiveKit/Stripe accounts, real outcome data for score tuning, and a drill of point-in-time recovery.
 
+## H. After launch: hardening and simplification (decided, not started)
+
+### Replace the Node/Socket.io relay with a Go WebSocket hub
+Decision (2026-10-29): not for the MVP. The Node relay (`realtime/`, 286 lines, 9 tests) works, holds no messages, and passes every request to the Go API with the user's own token, so authorization already lives in Go. A rewrite touches live chat on the server and in the app, for operational savings only (one fewer container, CI job, k8s workload and set of npm dependencies).
+
+Do it when one of these is true: running two services is a real burden, the up-to-20-second delay before a blocked or unmatched person's socket is cut matters, or one relay no longer carries the load. If only the instant cut is wanted, add a Redis "match closed" event to the Node relay instead (a few lines).
+
+If it goes ahead, fix the plan first:
+- Start from the merged purge work (`mvp-purge` is not merged into `main`).
+- The surviving room kinds are `masked` and `game` (live and event were removed).
+- `go test -race` needs a C compiler, which this Windows machine does not have; run it in Docker or CI.
+- Run Node and Go side by side behind a switch until the Go hub has proven itself, then delete `realtime/`.
+- The app change is one file (`mobile/lib/features/chat/data/realtime_client.dart`) plus the config.
+
+### Other post-launch items
+- Drop or rewrite the tables of removed features and make sure account erasure still works (`docs/PURGE.md`).
+- Native review of the Hindi and Spanish translations.
+- Dependency advisories for Go and Dart (`govulncheck`, `flutter pub outdated`).

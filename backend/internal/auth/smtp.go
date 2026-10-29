@@ -154,16 +154,35 @@ func (m *SMTPMailer) deliver(ctx context.Context, msg outgoing) error {
 	if err != nil {
 		return err
 	}
-	headers := "From: " + m.from.String() + "\r\n" +
-		"To: " + msg.to + "\r\n" +
-		"Subject: " + msg.subject + "\r\n" +
-		"Date: " + time.Now().UTC().Format(time.RFC1123Z) + "\r\n" +
-		"MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n"
-	if _, err := w.Write([]byte(headers + msg.body)); err != nil {
+	if _, err := w.Write(buildMessage(m.from.String(), msg.to, msg.subject, msg.body, time.Now())); err != nil {
 		return err
 	}
 	if err := w.Close(); err != nil {
 		return err
 	}
 	return c.Quit()
+}
+
+// buildMessage assembles the raw email: headers, a blank line, then the body.
+func buildMessage(from, to, subject, body string, now time.Time) []byte {
+	headers := "From: " + headerValue(from) + "\r\n" +
+		"To: " + headerValue(to) + "\r\n" +
+		"Subject: " + headerValue(subject) + "\r\n" +
+		"Date: " + now.UTC().Format(time.RFC1123Z) + "\r\n" +
+		"MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n"
+	return []byte(headers + body)
+}
+
+// headerValue makes a string safe for a single header line: every control
+// character, line breaks included, becomes a space. A member controls their
+// display name and it is part of some subjects, so a line break here would let
+// them add headers or start the body early.
+func headerValue(s string) string {
+	return strings.Map(func(r rune) rune {
+		switch {
+		case r < 0x20, r == 0x7f, r == 0x85, r == 0x2028, r == 0x2029:
+			return ' '
+		}
+		return r
+	}, s)
 }

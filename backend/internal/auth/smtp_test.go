@@ -89,3 +89,36 @@ func TestSMTPMailerRefusesCredentialsWithoutTLS(t *testing.T) {
 		t.Errorf("credentials sent over plaintext: %v", err)
 	}
 }
+
+// A member controls their display name, and the name is part of the subject of
+// emails sent to their trusted contacts. Line breaks in it must never become
+// extra headers or an early start of the body.
+func TestMessageHeadersCannotBeInjected(t *testing.T) {
+	evil := "Anna\r\nReply-To: attacker@evil.example\r\nBcc: victim@example.com\r\n\r\nPay at https://evil.example"
+	raw := string(buildMessage("ConnectMe <no-reply@example.com>", "friend@example.com", evil+" shared a date plan with you", "body text\r\n", time.Unix(0, 0)))
+
+	head, body, found := strings.Cut(raw, "\r\n\r\n")
+	if !found {
+		t.Fatal("message has no header/body separator")
+	}
+	for _, line := range strings.Split(head, "\r\n") {
+		for _, bad := range []string{"Reply-To:", "Bcc:"} {
+			if strings.HasPrefix(line, bad) {
+				t.Errorf("injected header %q in the message head", line)
+			}
+		}
+	}
+	if strings.Contains(body, "evil.example") {
+		t.Errorf("injected text reached the body: %q", body)
+	}
+	if n := strings.Count(head, "Subject:"); n != 1 {
+		t.Errorf("want one Subject header, got %d", n)
+	}
+}
+
+func TestMessageKeepsNormalSubjectsAndNonASCIINames(t *testing.T) {
+	raw := string(buildMessage("a@example.com", "b@example.com", "Zoë has checked in", "hello\r\n", time.Unix(0, 0)))
+	if !strings.Contains(raw, "Subject: Zoë has checked in\r\n") {
+		t.Errorf("a normal subject changed: %q", raw)
+	}
+}

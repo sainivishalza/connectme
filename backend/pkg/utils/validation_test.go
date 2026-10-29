@@ -84,3 +84,14 @@ func TestAgeGateReferenceIsConservative(t *testing.T) {
 		t.Fatalf("born 2008-10-15 is 18 everywhere: %v", err)
 	}
 }
+
+func TestHasControl(t *testing.T) {
+	for in, want := range map[string]bool{
+		"Anna": false, "Zoë": false, "李雷": false, "a b": false,
+		"a\nb": true, "a\r\nb": true, "a\x00": true, "a b": true, "a b": true, "a\x1bb": true, "a\x7f": true, "a\u0085b": true,
+	} {
+		if got := HasControl(in); got != want {
+			t.Errorf("HasControl(%q) = %v, want %v", in, got, want)
+		}
+	}
+}

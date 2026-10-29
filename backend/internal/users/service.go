@@ -93,6 +93,9 @@ func (s *Service) UpdateProfile(ctx context.Context, userID string, req UpdatePr
 		if v == "" || len([]rune(v)) > 50 {
 			return ValidationError{"display_name must be 1-50 characters"}
 		}
+		if utils.HasControl(v) {
+			return ValidationError{"display_name must be a single line of plain text"}
+		}
 		if err := s.VetText(ctx, userID, "name", v); err != nil {
 			return err
 		}

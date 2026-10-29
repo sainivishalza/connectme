@@ -4,6 +4,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -239,9 +240,10 @@ func (c Config) validate() []error {
 		if c.AIServiceURL == "" {
 			errs = append(errs, errors.New("AI_SERVICE_URL is required in production (content moderation fails closed without it)"))
 		}
-		if c.AIServiceKey == "" {
-			errs = append(errs, errors.New("AI_SERVICE_KEY is required in production"))
+		if err := weakSecret("AI_SERVICE_KEY", c.AIServiceKey, 16); err != nil {
+			errs = append(errs, err)
 		}
+		errs = append(errs, checkDatabaseURLs(c)...)
 		if c.ModerationDevBypass {
 			errs = append(errs, errors.New("MODERATION_DEV_BYPASS must not be set in production"))
 		}
@@ -326,3 +328,55 @@ func duration(key, def string) (time.Duration, error) {
 	}
 	return d, nil
 }
+
+// weakSecrets are values nobody should run production with.
+var weakSecrets = map[string]bool{
+	"password": true, "passw0rd": true, "postgres": true, "connectme": true, "changeme": true, "change-me": true,
+	"admin": true, "root": true, "secret": true, "test": true, "redis": true, "mongo": true, "mongodb": true,
+	"123456": true, "12345678": true, "qwerty": true, "letmein": true,
+}
+
+// weakSecret says what is wrong with a secret, or returns nil.
+func weakSecret(name, v string, min int) error {
+	switch {
+	case v == "":
+		return fmt.Errorf("%s is required in production", name)
+	case weakSecrets[strings.ToLower(v)], strings.HasPrefix(strings.ToLower(v), "change-me"), strings.HasPrefix(strings.ToLower(v), "changeme"):
+		return fmt.Errorf("%s is a default or placeholder value", name)
+	case len(v) < min:
+		return fmt.Errorf("%s must be at least %d characters", name, min)
+	}
+	return nil
+}
+
+// checkDatabaseURLs refuses default, short or missing database credentials and
+// unencrypted PostgreSQL connections to anything but this machine.
+func checkDatabaseURLs(c Config) []error {
+	var errs []error
+	if u, err := url.Parse(c.PostgresURL); err == nil && u.Host != "" {
+		pw, _ := u.User.Password()
+		if e := weakSecret("POSTGRES_URL password", pw, 12); e != nil {
+			errs = append(errs, fmt.Errorf("POSTGRES_URL: %w", e))
+		}
+		if u.Query().Get("sslmode") == "disable" && !isLocalHost(u.Hostname()) {
+			errs = append(errs, errors.New("POSTGRES_URL: sslmode=disable sends data unencrypted; use sslmode=require (or verify-full) in production"))
+		}
+	}
+	if u, err := url.Parse(c.RedisURL); err == nil && u.Host != "" {
+		pw, _ := u.User.Password()
+		if e := weakSecret("REDIS_URL password", pw, 12); e != nil {
+			errs = append(errs, fmt.Errorf("REDIS_URL: %w", e))
+		}
+	}
+	if u, err := url.Parse(c.MongoURL); err == nil && u.Host != "" {
+		pw, _ := u.User.Password()
+		if u.User == nil || u.User.Username() == "" {
+			errs = append(errs, errors.New("MONGO_URL: credentials are required in production"))
+		} else if e := weakSecret("MONGO_URL password", pw, 12); e != nil {
+			errs = append(errs, fmt.Errorf("MONGO_URL: %w", e))
+		}
+	}
+	return errs
+}
+
+func isLocalHost(h string) bool { return h == "localhost" || h == "127.0.0.1" || h == "::1" }

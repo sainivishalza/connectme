@@ -22,7 +22,9 @@ func setEnv(t *testing.T, kv map[string]string) {
 
 func valid() map[string]string {
 	return map[string]string{
-		"POSTGRES_URL": "postgres://x", "REDIS_URL": "redis://x", "MONGO_URL": "mongodb://x",
+		"POSTGRES_URL": "postgres://connectme:Str0ng-Postgres-9xQ@db.internal:5432/connectme?sslmode=require",
+		"REDIS_URL":    "redis://:Str0ng-Redis-9xQ-pass@cache.internal:6379",
+		"MONGO_URL":    "mongodb://connectme:Str0ng-Mongo-9xQ-pass@mongo.internal:27017",
 		"JWT_SECRET": strings.Repeat("a", 40), "ENV": "development",
 	}
 }
@@ -39,7 +41,7 @@ func prodOK(t *testing.T) map[string]string {
 	m["APP_ALLOWED_ORIGINS"] = "https://app.example.com"
 	m["STRIPE_SECRET_KEY"], m["STRIPE_WEBHOOK_SECRET"] = "sk_live_x", "whsec_x"
 	m["SMTP_HOST"], m["SMTP_FROM"] = "smtp.example.com", "ConnectMe <no-reply@example.com>"
-	m["AI_SERVICE_URL"], m["AI_SERVICE_KEY"] = "http://ai-service:8000", "k"
+	m["AI_SERVICE_URL"], m["AI_SERVICE_KEY"] = "http://ai-service:8000", "0123456789abcdef0123456789abcdef"
 	m["CSAM_PROVIDER"] = "photodna"
 	m["TRUSTED_PROXY_CIDRS"] = "10.0.0.0/8"
 	return m
@@ -84,7 +86,7 @@ func TestProductionRequiresRealEmailDelivery(t *testing.T) {
 		m["APP_ALLOWED_ORIGINS"] = "https://app.example.com"
 		m["STRIPE_SECRET_KEY"] = "sk_live_x"
 		m["STRIPE_WEBHOOK_SECRET"] = "whsec_x"
-		m["AI_SERVICE_URL"], m["AI_SERVICE_KEY"] = "http://ai-service:8000", "k"
+		m["AI_SERVICE_URL"], m["AI_SERVICE_KEY"] = "http://ai-service:8000", "0123456789abcdef0123456789abcdef"
 		m["CSAM_PROVIDER"] = "photodna"
 		m["TRUSTED_PROXY_CIDRS"] = "10.0.0.0/8"
 		return m
@@ -112,7 +114,7 @@ func TestProductionRefusesUnscannedVideo(t *testing.T) {
 	m["APP_ALLOWED_ORIGINS"] = "https://app.example.com"
 	m["STRIPE_SECRET_KEY"] = "sk_live_x"
 	m["STRIPE_WEBHOOK_SECRET"] = "whsec_x"
-	m["AI_SERVICE_URL"], m["AI_SERVICE_KEY"] = "http://ai-service:8000", "k"
+	m["AI_SERVICE_URL"], m["AI_SERVICE_KEY"] = "http://ai-service:8000", "0123456789abcdef0123456789abcdef"
 	m["CSAM_PROVIDER"] = "photodna"
 	m["SMTP_HOST"], m["SMTP_FROM"] = "smtp.example.com", "ConnectMe <no-reply@example.com>"
 	m["ENABLE_VIDEO"] = "true"
@@ -134,7 +136,7 @@ func TestVideoScannerConfiguration(t *testing.T) {
 		m["APP_ALLOWED_ORIGINS"] = "https://app.example.com"
 		m["STRIPE_SECRET_KEY"] = "sk_live_x"
 		m["STRIPE_WEBHOOK_SECRET"] = "whsec_x"
-		m["AI_SERVICE_URL"], m["AI_SERVICE_KEY"] = "http://ai-service:8000", "k"
+		m["AI_SERVICE_URL"], m["AI_SERVICE_KEY"] = "http://ai-service:8000", "0123456789abcdef0123456789abcdef"
 		m["CSAM_PROVIDER"] = "photodna"
 		m["TRUSTED_PROXY_CIDRS"] = "10.0.0.0/8"
 		m["SMTP_HOST"], m["SMTP_FROM"] = "smtp.example.com", "ConnectMe <no-reply@example.com>"
@@ -227,6 +229,14 @@ func TestProductionSafetyRules(t *testing.T) {
 		{"dev bypass on", func(m map[string]string) { m["MODERATION_DEV_BYPASS"] = "true" }, "MODERATION_DEV_BYPASS must not be set"},
 		{"jwt secret placeholder", func(m map[string]string) { m["JWT_SECRET"] = "change-me" + strings.Repeat("x", 40) }, "JWT_SECRET"},
 		{"jwt secret short", func(m map[string]string) { m["JWT_SECRET"] = "short" }, "JWT_SECRET"},
+		{"postgres weak password", func(m map[string]string) { m["POSTGRES_URL"] = "postgres://connectme:password@db.internal:5432/connectme?sslmode=require" }, "POSTGRES_URL"},
+		{"postgres short password", func(m map[string]string) { m["POSTGRES_URL"] = "postgres://connectme:abc123@db.internal:5432/connectme?sslmode=require" }, "POSTGRES_URL"},
+		{"postgres without tls", func(m map[string]string) { m["POSTGRES_URL"] = "postgres://connectme:Str0ng-Postgres-9xQ@db.internal:5432/connectme?sslmode=disable" }, "POSTGRES_URL"},
+		{"postgres without tls but on localhost", func(m map[string]string) { m["POSTGRES_URL"] = "postgres://connectme:Str0ng-Postgres-9xQ@localhost:5432/connectme?sslmode=disable" }, ""},
+		{"redis without a password", func(m map[string]string) { m["REDIS_URL"] = "redis://cache.internal:6379" }, "REDIS_URL"},
+		{"mongo without credentials", func(m map[string]string) { m["MONGO_URL"] = "mongodb://mongo.internal:27017" }, "MONGO_URL"},
+		{"ai key too short", func(m map[string]string) { m["AI_SERVICE_KEY"] = "k" }, "AI_SERVICE_KEY"},
+		{"ai key is a placeholder", func(m map[string]string) { m["AI_SERVICE_KEY"] = "change-me-change-me-change-me" }, "AI_SERVICE_KEY"},
 		{"trusted proxies missing", func(m map[string]string) { delete(m, "TRUSTED_PROXY_CIDRS") }, "TRUSTED_PROXY_CIDRS is required"},
 		{"trusted proxies explicitly none", func(m map[string]string) { m["TRUSTED_PROXY_CIDRS"] = "none" }, ""},
 		{"trusted proxies invalid", func(m map[string]string) { m["TRUSTED_PROXY_CIDRS"] = "not-a-cidr" }, "TRUSTED_PROXY_CIDRS"},

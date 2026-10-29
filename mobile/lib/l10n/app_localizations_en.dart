@@ -174,16 +174,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sAskWingmanForAReply => 'Ask Wingman for a reply';
 
   @override
-  String get sAskTheRoom => 'Ask the room';
-
-  @override
-  String get sAudioRooms => 'Audio rooms';
-
-  @override
   String get sBack => 'Back';
-
-  @override
-  String get sBackToRooms => 'Back to rooms';
 
   @override
   String get sBlock => 'Block';
@@ -273,16 +264,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sEditProfile => 'Edit profile';
 
   @override
-  String get sEnd => 'End';
-
-  @override
   String get sEndGame => 'End game';
-
-  @override
-  String get sEndRoom => 'End room';
-
-  @override
-  String get sEndStream => 'End stream';
 
   @override
   String get sEveryone => 'Everyone';
@@ -307,9 +289,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sGiftsReceived => 'Gifts received';
-
-  @override
-  String get sGoLive => 'Go live';
 
   @override
   String get sGroup => 'Group';
@@ -363,9 +342,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sLevels => 'Levels';
 
   @override
-  String get sLive => 'Live';
-
-  @override
   String get sMan => 'Man';
 
   @override
@@ -385,9 +361,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sMostLikelyTo => 'Most likely to';
-
-  @override
-  String get sMuteInChat => 'Mute in chat';
 
   @override
   String get sNearbyGroups => 'Nearby groups';
@@ -430,19 +403,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sOther => 'Other';
 
   @override
-  String get sPin => 'Pin';
-
-  @override
-  String get sPinnedMessage => 'Pinned message';
-
-  @override
   String get sPlayAGame => 'Play a game';
 
   @override
   String get sPlayAgain => 'Play again';
-
-  @override
-  String get sPoll => 'Poll';
 
   @override
   String get sPost => 'Post';
@@ -541,22 +505,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sSkipForNow => 'Skip for now';
 
   @override
-  String get sStart => 'Start';
-
-  @override
   String get sStartAGroup => 'Start a group';
-
-  @override
-  String get sStartARoom => 'Start a room';
 
   @override
   String get sStartARound => 'Start a round';
 
   @override
   String get sStartAThread => 'Start a thread';
-
-  @override
-  String get sStartStreaming => 'Start streaming';
 
   @override
   String get sStartTheGame => 'Start the game';

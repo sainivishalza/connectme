@@ -19,7 +19,7 @@ function startApi() {
     const tok = (req.headers.authorization || '').replace('Bearer ', '');
     let user;
     try { user = jwt.verify(tok, SECRET).sub; } catch { res.writeHead(401).end(); return; }
-    const sg = req.url.match(/^\/signal\/(live|game)\/([^/]+)\/access$/);
+    const sg = req.url.match(/^\/signal\/(masked|game)\/([^/]+)\/access$/);
     if (sg) { res.writeHead(sg[2] === MATCH && user !== 'carol' ? 204 : 404).end(); return; }
     const m = req.url.match(/^\/chat\/matches\/([^/]+)\/(access|messages|read)$/);
     if (!m || !state.members.get(m[1])?.has(user)) { res.writeHead(404).end(); return; }

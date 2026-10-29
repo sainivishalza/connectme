@@ -273,3 +273,6 @@ func (e *env) balance(uid string) int {
 	}
 	return n
 }
+
+// liveSecret is the LiveKit API secret the test server is configured with.
+const liveSecret = "livekit-test-secret-at-least-32-bytes!!"

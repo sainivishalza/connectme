@@ -174,16 +174,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get sAskWingmanForAReply => 'जवाब के लिए Wingman से पूछें';
 
   @override
-  String get sAskTheRoom => 'कमरे से पूछें';
-
-  @override
-  String get sAudioRooms => 'ऑडियो रूम';
-
-  @override
   String get sBack => 'वापस';
-
-  @override
-  String get sBackToRooms => 'कमरों पर वापस';
 
   @override
   String get sBlock => 'ब्लॉक करें';
@@ -273,16 +264,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get sEditProfile => 'प्रोफ़ाइल बदलें';
 
   @override
-  String get sEnd => 'खत्म करें';
-
-  @override
   String get sEndGame => 'खेल खत्म करें';
-
-  @override
-  String get sEndRoom => 'कमरा बंद करें';
-
-  @override
-  String get sEndStream => 'स्ट्रीम खत्म करें';
 
   @override
   String get sEveryone => 'सभी';
@@ -307,9 +289,6 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get sGiftsReceived => 'मिले उपहार';
-
-  @override
-  String get sGoLive => 'लाइव जाएँ';
 
   @override
   String get sGroup => 'ग्रुप';
@@ -363,9 +342,6 @@ class AppLocalizationsHi extends AppLocalizations {
   String get sLevels => 'लेवल';
 
   @override
-  String get sLive => 'लाइव';
-
-  @override
   String get sMan => 'पुरुष';
 
   @override
@@ -385,9 +361,6 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get sMostLikelyTo => 'सबसे ज़्यादा संभावना';
-
-  @override
-  String get sMuteInChat => 'चैट में म्यूट करें';
 
   @override
   String get sNearbyGroups => 'आस-पास के ग्रुप';
@@ -430,19 +403,10 @@ class AppLocalizationsHi extends AppLocalizations {
   String get sOther => 'अन्य';
 
   @override
-  String get sPin => 'पिन करें';
-
-  @override
-  String get sPinnedMessage => 'पिन किया संदेश';
-
-  @override
   String get sPlayAGame => 'खेल खेलें';
 
   @override
   String get sPlayAgain => 'फिर खेलें';
-
-  @override
-  String get sPoll => 'पोल';
 
   @override
   String get sPost => 'पोस्ट करें';
@@ -541,22 +505,13 @@ class AppLocalizationsHi extends AppLocalizations {
   String get sSkipForNow => 'अभी छोड़ें';
 
   @override
-  String get sStart => 'शुरू करें';
-
-  @override
   String get sStartAGroup => 'ग्रुप शुरू करें';
-
-  @override
-  String get sStartARoom => 'कमरा शुरू करें';
 
   @override
   String get sStartARound => 'राउंड शुरू करें';
 
   @override
   String get sStartAThread => 'थ्रेड शुरू करें';
-
-  @override
-  String get sStartStreaming => 'स्ट्रीमिंग शुरू करें';
 
   @override
   String get sStartTheGame => 'खेल शुरू करें';

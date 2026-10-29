@@ -202,13 +202,12 @@ void main() {
       GoRoute(path: '/explore', builder: (_, _) => const ExploreScreen()),
       GoRoute(path: '/feed/:kind', builder: (_, s) => Scaffold(body: Text('feed ${s.pathParameters['kind']}'))),
       GoRoute(path: '/random', builder: (_, _) => const Scaffold(body: Text('random'))),
-      GoRoute(path: '/live', builder: (_, _) => const Scaffold(body: Text('live'))),
     ]);
     await t.binding.setSurfaceSize(const Size(500, 3200));
     addTearDown(() => t.binding.setSurfaceSize(null));
     await t.pumpWidget(MaterialApp.router(routerConfig: router));
     await t.pumpAndSettle();
-    for (final id in ['moments', 'universe', 'missed', 'groups', 'random', 'masked', 'videos', 'audio', 'forums', 'live']) {
+    for (final id in ['moments', 'universe', 'missed', 'groups', 'random', 'masked', 'videos', 'forums']) {
       expect(find.byKey(Key('explore_$id')), findsOneWidget);
     }
     await t.tap(find.byKey(const Key('explore_universe')));

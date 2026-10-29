@@ -21,8 +21,8 @@ function verifyAccessToken(token, secret) {
   return c;
 }
 
-const SIGNAL_KINDS = new Set(['live', 'masked', 'event', 'game']);
-const SIGNAL_TOPIC = /^(live|masked|event|game):[0-9a-fA-F-]{36}$/;
+const SIGNAL_KINDS = new Set(['masked', 'game']);
+const SIGNAL_TOPIC = /^(masked|game):[0-9a-fA-F-]{36}$/;
 
 function isObject(v) { return v !== null && typeof v === 'object' && !Array.isArray(v); }
 function isId(v) { return typeof v === 'string' && /^[0-9a-fA-F-]{36}$/.test(v); }

@@ -31,7 +31,6 @@ type DayCount struct {
 	Swipes   int    `json:"swipes"`
 	Matches  int    `json:"matches"`
 	Reports  int    `json:"reports"`
-	LiveRoom int    `json:"live_rooms"`
 }
 
 // ReasonCount is how many reports were filed for one reason in the period.
@@ -81,8 +80,7 @@ func (s *Service) Analytics(ctx context.Context, days int) (*Analytics, error) {
 		       (SELECT COUNT(*) FROM users WHERE created_at >= d AND created_at < d + INTERVAL '1 day')::int,
 		       (SELECT COUNT(*) FROM swipes WHERE created_at >= d AND created_at < d + INTERVAL '1 day')::int,
 		       (SELECT COUNT(*) FROM matches WHERE status = 'matched' AND created_at >= d AND created_at < d + INTERVAL '1 day')::int,
-		       (SELECT COUNT(*) FROM reports WHERE reason <> 'auto_review' AND created_at >= d AND created_at < d + INTERVAL '1 day')::int,
-		       (SELECT COUNT(*) FROM live_rooms WHERE created_at >= d AND created_at < d + INTERVAL '1 day')::int
+		       (SELECT COUNT(*) FROM reports WHERE reason <> 'auto_review' AND created_at >= d AND created_at < d + INTERVAL '1 day')::int
 		  FROM generate_series(date_trunc('day', NOW()) - make_interval(days => $1 - 1), date_trunc('day', NOW()), INTERVAL '1 day') d
 		 ORDER BY d`, days)
 	if err != nil {
@@ -91,7 +89,7 @@ func (s *Service) Analytics(ctx context.Context, days int) (*Analytics, error) {
 	defer rows.Close()
 	for rows.Next() {
 		var d DayCount
-		if err := rows.Scan(&d.Day, &d.Signups, &d.Swipes, &d.Matches, &d.Reports, &d.LiveRoom); err != nil {
+		if err := rows.Scan(&d.Day, &d.Signups, &d.Swipes, &d.Matches, &d.Reports); err != nil {
 			return nil, err
 		}
 		out.Daily = append(out.Daily, d)

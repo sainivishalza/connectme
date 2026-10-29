@@ -29,10 +29,6 @@ const Prefix = "sig:"
 func TopicFor(path string) string {
 	p := strings.Split(strings.Trim(path, "/"), "/")
 	switch {
-	case len(p) >= 4 && p[0] == "live" && p[1] == "rooms" && p[3] == "join":
-		return "" // a viewer arriving would wake every other viewer
-	case len(p) >= 4 && p[0] == "live" && p[1] == "rooms":
-		return "live:" + p[2]
 	case len(p) >= 4 && p[0] == "games" && p[1] == "masked" && p[2] == "rooms":
 		return "masked:" + p[3]
 	case len(p) >= 3 && p[0] == "games" && (p[1] == "td" || p[1] == "party" || p[1] == "group"):
@@ -85,8 +81,6 @@ func (s *Service) Allowed(ctx context.Context, userID, kind, id string) error {
 	}
 	var q string
 	switch kind {
-	case "live":
-		q = `SELECT EXISTS(SELECT 1 FROM live_rooms WHERE id=$2::uuid)`
 	case "masked":
 		q = `SELECT EXISTS(SELECT 1 FROM masked_members WHERE room_id=$2::uuid AND user_id=$1::uuid AND left_at IS NULL)`
 	case "game":

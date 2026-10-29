@@ -72,14 +72,13 @@ func (s *Service) ranking(ctx context.Context, kind, period string, since *time.
 	}
 	rows, err := s.db.Query(ctx, `
 		WITH score AS (
-		  SELECT r.host_id AS uid, SUM(lg.host_coins)::bigint AS coins, COUNT(*)::int AS gifts
-		    FROM live_gifts lg JOIN live_rooms r ON r.id = lg.room_id
-		   WHERE $2::text = 'hosts' AND ($1::timestamptz IS NULL OR lg.created_at >= $1) GROUP BY r.host_id
+		  SELECT g.to_user AS uid, SUM(g.coins)::bigint AS coins, COUNT(*)::int AS gifts
+		    FROM gifts_sent g
+		   WHERE $2::text = 'hosts' AND ($1::timestamptz IS NULL OR g.created_at >= $1) GROUP BY g.to_user
 		  UNION ALL
-		  SELECT uid, SUM(coins)::bigint, COUNT(*)::int FROM (
-		    SELECT lg.from_user AS uid, lg.coins, lg.created_at FROM live_gifts lg
-		    UNION ALL SELECT g.from_user, g.coins, g.created_at FROM gifts_sent g) x
-		   WHERE $2::text = 'supporters' AND ($1::timestamptz IS NULL OR created_at >= $1) GROUP BY uid)
+		  SELECT g.from_user, SUM(g.coins)::bigint, COUNT(*)::int
+		    FROM gifts_sent g
+		   WHERE $2::text = 'supporters' AND ($1::timestamptz IS NULL OR g.created_at >= $1) GROUP BY g.from_user)
 		SELECT score.uid::text, p.public_ref::text, COALESCE(p.display_name,''), score.gifts,
 		       CASE $2::text WHEN 'hosts' THEN charm_coins(score.uid) ELSE support_coins(score.uid) END
 		  FROM score

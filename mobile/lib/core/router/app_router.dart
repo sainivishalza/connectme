@@ -23,19 +23,12 @@ import '../../features/forums/screens/forums_screen.dart';
 import '../../features/forums/screens/thread_screen.dart';
 import '../../features/push/screens/notifications_screen.dart';
 import '../../features/videos/screens/video_feed_screen.dart';
-import '../../features/audio/audio_repository.dart';
-import '../../features/audio/screens/audio_list_screen.dart';
-import '../../features/audio/screens/audio_room_screen.dart';
 import '../../features/communities/communities_repository.dart';
 import '../../features/communities/screens/communities_screen.dart';
 import '../../features/explore/explore_screen.dart';
-import '../../features/live/live_repository.dart';
 import '../../features/social/screens/feed_screen.dart';
 import '../../features/social/social_repository.dart';
 import '../../features/random_chat/screens/random_screen.dart';
-import '../../features/live/screens/broadcast_screen.dart';
-import '../../features/live/screens/live_list_screen.dart';
-import '../../features/live/screens/live_room_screen.dart';
 import '../../features/group_dates/screens/create_group_screen.dart';
 import '../../features/group_dates/screens/group_dates_screen.dart';
 import '../../features/group_dates/screens/group_detail_screen.dart';
@@ -140,20 +133,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/settings/appearance', builder: (_, _) => const AppearanceScreen()),
       GoRoute(path: '/settings/notifications', builder: (_, _) => const NotificationsScreen()),
       GoRoute(path: '/videos', builder: (_, _) => const VideoFeedScreen()),
-      GoRoute(path: '/audio', builder: (_, _) => const AudioListScreen()),
-      GoRoute(
-        path: '/audio/:id',
-        builder: (_, s) => AudioRoomScreen(roomId: s.pathParameters['id']!, started: s.extra is StartedAudio ? s.extra as StartedAudio : null),
-      ),
-      GoRoute(path: '/live', builder: (_, _) => const LiveListScreen()),
-      GoRoute(path: '/live/broadcast', builder: (_, _) => const BroadcastScreen()),
-      GoRoute(
-        path: '/live/:id',
-        builder: (_, s) => LiveRoomScreen(
-          roomId: s.pathParameters['id']!,
-          room: s.extra is LiveRoom ? s.extra as LiveRoom : null,
-        ),
-      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => AppShell(shell: shell),
         branches: [

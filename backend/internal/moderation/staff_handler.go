@@ -74,20 +74,6 @@ func (h *Handler) audit(w http.ResponseWriter, r *http.Request) {
 	middleware.WriteJSON(w, http.StatusOK, map[string]any{"entries": res})
 }
 
-func (h *Handler) endStream(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Reason string `json:"reason"`
-	}
-	if !decode(w, r, &req) {
-		return
-	}
-	if err := h.svc.EndStream(r.Context(), actor(r), chi.URLParam(r, "id"), req.Reason); err != nil {
-		fail(w, err)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
-
 func (h *Handler) removePost(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Reason string `json:"reason"`

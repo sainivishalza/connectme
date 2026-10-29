@@ -11,7 +11,6 @@ import (
 
 	"connectme/internal/admin"
 	"connectme/internal/aiclient"
-	"connectme/internal/audio"
 	"connectme/internal/auth"
 	"connectme/internal/calls"
 	"connectme/internal/chapters"
@@ -27,7 +26,6 @@ import (
 	"connectme/internal/idcheck"
 	"connectme/internal/investors"
 	"connectme/internal/levels"
-	"connectme/internal/live"
 	"connectme/internal/livekit"
 	"connectme/internal/matching"
 	"connectme/internal/moderation"
@@ -130,22 +128,12 @@ func New(d Deps) *http.Server {
 	r.Mount("/payments", payments.Routes(paySvc, d.Redis.Client, secret))
 	r.Mount("/groups", groups.Routes(groups.NewService(d.PG, usersSvc, groups.NewHTTPSuggester(d.Cfg.AIServiceURL, d.Cfg.AIServiceKey)),
 		d.Redis.Client, secret))
-	var liveSvc *live.Service
 	var callSvc *calls.Service
-	var audioSvc *audio.Service
 	if d.Cfg.LiveKitURL != "" {
-		liveSvc = live.NewService(d.PG, livekit.Client{
-			WSURL: d.Cfg.LiveKitURL, APIKey: d.Cfg.LiveKitAPIKey, APISecret: d.Cfg.LiveKitAPISecret})
-		liveSvc.SetVetter(usersSvc)
-		liveSvc.SetAlerts(followsSvc, pushSvc)
-		r.Mount("/live", live.Routes(liveSvc, d.Redis.Client, secret))
 		callSvc = calls.NewService(d.PG, usersSvc, livekit.Client{
 			WSURL: d.Cfg.LiveKitURL, APIKey: d.Cfg.LiveKitAPIKey, APISecret: d.Cfg.LiveKitAPISecret})
 		callSvc.SetNotifier(pushSvc)
 		r.Mount("/calls", calls.Routes(callSvc, d.Redis.Client, secret))
-		audioSvc = audio.NewService(d.PG, livekit.Client{
-			WSURL: d.Cfg.LiveKitURL, APIKey: d.Cfg.LiveKitAPIKey, APISecret: d.Cfg.LiveKitAPISecret}, usersSvc)
-		r.Mount("/audio", audio.Routes(audioSvc, d.Redis.Client, secret))
 	}
 	r.Mount("/chapters", chapters.Routes(chapters.NewService(d.PG, usersSvc), d.Redis.Client, secret))
 	if d.Cfg.EnableInvestors {
@@ -200,14 +188,8 @@ func New(d Deps) *http.Server {
 	r.Mount("/privacy", privacy.Routes(privacySvc, d.Redis.Client, secret))
 	modSvc := moderation.NewService(d.PG, usersSvc, tokens)
 	modSvc.SetNotifier(pushSvc)
-	if liveSvc != nil {
-		modSvc.SetStreams(liveSvc)
-	}
 	if callSvc != nil {
 		modSvc.SetCalls(callSvc)
-	}
-	if audioSvc != nil {
-		modSvc.SetAudio(audioSvc)
 	}
 	if videoSvc != nil {
 		modSvc.SetVideos(videoSvc)

@@ -14,12 +14,10 @@ class ExploreScreen extends StatelessWidget {
     _Tile('missed', 'Missed connections', 'Find someone you saw at your venue.', Icons.hotel_outlined, '/feed/missed', 'hotel'),
     _Tile('groups', 'Nearby groups', 'Join interest groups near you, or your hotel\'s guests.', Icons.groups_2_outlined, '/communities', 'open'),
     _Tile('videos', 'Short videos', 'Swipe through clips from people nearby in Open mode.', Icons.smart_display_outlined, '/videos', 'open'),
-    _Tile('audio', 'Audio rooms', 'Listen in, or raise a hand and join the conversation.', Icons.graphic_eq, '/audio', 'open'),
     _Tile('random', 'Random chat', 'Talk to someone new, anonymously.', Icons.shuffle, '/random', 'incognito'),
     _Tile('masked-room', 'Masked room', 'Three to five strangers, made-up names, truth or dare.', Icons.groups_2_outlined, '/masked-room', 'incognito'),
     _Tile('masked', 'Masked Truth', 'Anonymous truth or dare with a stranger.', Icons.theater_comedy_outlined, '/masked', 'incognito'),
     _Tile('forums', 'Forums', 'Dating advice, travel tips and city boards.', Icons.forum_outlined, '/forums', 'open'),
-    _Tile('live', 'Live', 'Watch or start a live stream.', Icons.live_tv_outlined, '/live', 'open'),
   ];
 
   @override

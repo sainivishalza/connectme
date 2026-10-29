@@ -136,7 +136,6 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         SwitchListTile(key: const Key('pref_messages'), title: Text(AppLocalizations.of(context)?.sMessages ?? 'Messages'), subtitle: const Text('"You have a new message"'), value: _prefs.messages, onChanged: (v) => _set(_prefs.copyWith(messages: v))),
         SwitchListTile(key: const Key('pref_matches'), title: Text(AppLocalizations.of(context)?.sMatches ?? 'Matches'), subtitle: const Text('"You have a new match"'), value: _prefs.matches, onChanged: (v) => _set(_prefs.copyWith(matches: v))),
         SwitchListTile(key: const Key('pref_calls'), title: Text(AppLocalizations.of(context)?.sCalls ?? 'Calls'), subtitle: const Text('"Incoming call"'), value: _prefs.calls, onChanged: (v) => _set(_prefs.copyWith(calls: v))),
-        SwitchListTile(key: const Key('pref_live'), title: const Text('People you follow go live'), subtitle: const Text('"Someone you follow is live"'), value: _prefs.live, onChanged: (v) => _set(_prefs.copyWith(live: v))),
         SwitchListTile(key: const Key('pref_comments'), title: Text(AppLocalizations.of(context)?.sRepliesToYourPosts ?? 'Replies to your posts'), subtitle: const Text('"Someone replied to your post"'), value: _prefs.comments, onChanged: (v) => _set(_prefs.copyWith(comments: v))),
         const Divider(),
         SwitchListTile(

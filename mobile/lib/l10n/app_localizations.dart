@@ -424,29 +424,11 @@ abstract class AppLocalizations {
   /// **'Ask Wingman for a reply'**
   String get sAskWingmanForAReply;
 
-  /// No description provided for @sAskTheRoom.
-  ///
-  /// In en, this message translates to:
-  /// **'Ask the room'**
-  String get sAskTheRoom;
-
-  /// No description provided for @sAudioRooms.
-  ///
-  /// In en, this message translates to:
-  /// **'Audio rooms'**
-  String get sAudioRooms;
-
   /// No description provided for @sBack.
   ///
   /// In en, this message translates to:
   /// **'Back'**
   String get sBack;
-
-  /// No description provided for @sBackToRooms.
-  ///
-  /// In en, this message translates to:
-  /// **'Back to rooms'**
-  String get sBackToRooms;
 
   /// No description provided for @sBlock.
   ///
@@ -622,29 +604,11 @@ abstract class AppLocalizations {
   /// **'Edit profile'**
   String get sEditProfile;
 
-  /// No description provided for @sEnd.
-  ///
-  /// In en, this message translates to:
-  /// **'End'**
-  String get sEnd;
-
   /// No description provided for @sEndGame.
   ///
   /// In en, this message translates to:
   /// **'End game'**
   String get sEndGame;
-
-  /// No description provided for @sEndRoom.
-  ///
-  /// In en, this message translates to:
-  /// **'End room'**
-  String get sEndRoom;
-
-  /// No description provided for @sEndStream.
-  ///
-  /// In en, this message translates to:
-  /// **'End stream'**
-  String get sEndStream;
 
   /// No description provided for @sEveryone.
   ///
@@ -693,12 +657,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Gifts received'**
   String get sGiftsReceived;
-
-  /// No description provided for @sGoLive.
-  ///
-  /// In en, this message translates to:
-  /// **'Go live'**
-  String get sGoLive;
 
   /// No description provided for @sGroup.
   ///
@@ -802,12 +760,6 @@ abstract class AppLocalizations {
   /// **'Levels'**
   String get sLevels;
 
-  /// No description provided for @sLive.
-  ///
-  /// In en, this message translates to:
-  /// **'Live'**
-  String get sLive;
-
   /// No description provided for @sMan.
   ///
   /// In en, this message translates to:
@@ -849,12 +801,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Most likely to'**
   String get sMostLikelyTo;
-
-  /// No description provided for @sMuteInChat.
-  ///
-  /// In en, this message translates to:
-  /// **'Mute in chat'**
-  String get sMuteInChat;
 
   /// No description provided for @sNearbyGroups.
   ///
@@ -934,18 +880,6 @@ abstract class AppLocalizations {
   /// **'Other'**
   String get sOther;
 
-  /// No description provided for @sPin.
-  ///
-  /// In en, this message translates to:
-  /// **'Pin'**
-  String get sPin;
-
-  /// No description provided for @sPinnedMessage.
-  ///
-  /// In en, this message translates to:
-  /// **'Pinned message'**
-  String get sPinnedMessage;
-
   /// No description provided for @sPlayAGame.
   ///
   /// In en, this message translates to:
@@ -957,12 +891,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Play again'**
   String get sPlayAgain;
-
-  /// No description provided for @sPoll.
-  ///
-  /// In en, this message translates to:
-  /// **'Poll'**
-  String get sPoll;
 
   /// No description provided for @sPost.
   ///
@@ -1156,23 +1084,11 @@ abstract class AppLocalizations {
   /// **'Skip for now'**
   String get sSkipForNow;
 
-  /// No description provided for @sStart.
-  ///
-  /// In en, this message translates to:
-  /// **'Start'**
-  String get sStart;
-
   /// No description provided for @sStartAGroup.
   ///
   /// In en, this message translates to:
   /// **'Start a group'**
   String get sStartAGroup;
-
-  /// No description provided for @sStartARoom.
-  ///
-  /// In en, this message translates to:
-  /// **'Start a room'**
-  String get sStartARoom;
 
   /// No description provided for @sStartARound.
   ///
@@ -1185,12 +1101,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Start a thread'**
   String get sStartAThread;
-
-  /// No description provided for @sStartStreaming.
-  ///
-  /// In en, this message translates to:
-  /// **'Start streaming'**
-  String get sStartStreaming;
 
   /// No description provided for @sStartTheGame.
   ///

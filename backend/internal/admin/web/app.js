@@ -135,7 +135,7 @@ function renderLogin(error) {
 async function renderShell() {
   clear($app);
   const main = h('main');
-  const tabs = [['queue', 'Queue'], ['idchecks', 'ID checks'], ['reports', 'Reports'], ['users', 'Find a member'], ['rooms', 'Reported rooms'], ['appeals', 'Appeals'], ['trends', 'Trends'], ['live', 'Live streams']];
+  const tabs = [['queue', 'Queue'], ['idchecks', 'ID checks'], ['reports', 'Reports'], ['users', 'Find a member'], ['rooms', 'Reported rooms'], ['appeals', 'Appeals'], ['trends', 'Trends']];
   if (state.role === 'admin') tabs.push(['sponsors', 'Sponsors'], ['investors', 'Investors'], ['audit', 'Audit log']);
   const nav = h('nav', { role: 'tablist' }, tabs.map(([id, label]) =>
     h('button', { role: 'tab', 'aria-selected': String(state.tab === id), text: label, onclick: () => { state.tab = id; state.selected = null; renderShell(); } })));
@@ -150,7 +150,6 @@ async function renderShell() {
   if (state.tab === 'queue') renderQueue(body);
   else if (state.tab === 'reports') renderReports(body);
   else if (state.tab === 'users') renderUserLookup(body);
-  else if (state.tab === 'live') renderLive(body);
   else if (state.tab === 'trends') renderTrends(body);
   else if (state.tab === 'rooms') renderRooms(body);
   else if (state.tab === 'appeals') renderAppeals(body);
@@ -570,7 +569,7 @@ function svg(tag, attrs = {}, ...kids) {
 const txt = (s) => document.createTextNode(String(s));
 const FUNNEL_STEPS = [['registered', 'Signed up'], ['verified', 'Confirmed their email'], ['onboarded', 'Finished the welcome'],
   ['with_photo', 'Added a photo'], ['swiped', 'Started swiping'], ['matched', 'Got a match']];
-const SERIES = [['signups', 'Sign-ups'], ['swipes', 'Swipes'], ['matches', 'Matches'], ['reports', 'Reports'], ['live_rooms', 'Live rooms']];
+const SERIES = [['signups', 'Sign-ups'], ['swipes', 'Swipes'], ['matches', 'Matches'], ['reports', 'Reports']];
 
 function funnelChart(f) {
   const max = Math.max(1, f.registered), rowH = 34, w = 640, labelW = 190, barMax = w - labelW - 190;
@@ -627,31 +626,6 @@ function renderTrends(root) {
 }
 
 // ---- audit log ----------------------------------------------------------
-function renderLive(root) {
-  const panel = h('div', { class: 'panel' });
-  root.append(panel);
-  async function load() {
-    clear(panel);
-    panel.append(h('div', { class: 'row spread' }, h('h2', { text: 'Live streams' }),
-      h('button', { class: 'btn', text: 'Refresh', onclick: load })));
-    let rooms;
-    try { ({ rooms } = await api('/live/rooms')); }
-    catch (e) { panel.append(h('div', { class: 'error', text: e.message })); return; }
-    if (!rooms.length) { panel.append(h('div', { class: 'empty', text: 'Nobody is live.' })); return; }
-    panel.append(h('table', {}, h('tr', {}, ['Title', 'Host', 'Started', ''].map((c) => h('th', { text: c }))),
-      rooms.map((r) => h('tr', {}, h('td', { text: r.title }), h('td', { text: r.host_name || r.host_ref.slice(0, 8) }),
-        h('td', { text: when(r.started_at) }),
-        h('td', {}, h('button', { class: 'btn danger', text: 'End stream', onclick: async () => {
-          const reason = await confirmDialog({ title: 'End this stream?', body: 'The host and viewers are disconnected. Provide a reason; it is stored in the audit log.',
-            confirmText: 'End stream', danger: true, withReason: true });
-          if (!reason) return;
-          try { await api(`/moderation/live/${encodeURIComponent(r.id)}/end`, { method: 'POST', body: { reason } }); load(); loadStats(); }
-          catch (e) { panel.append(h('div', { class: 'error', text: e.message })); }
-        } }))))));
-  }
-  load();
-}
-
 function renderAudit(root) {
   const panel = h('div', { class: 'panel' }, h('h2', { text: 'Staff audit log' }), h('div', { class: 'empty', text: 'Loading…' }));
   root.append(panel);

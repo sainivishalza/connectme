@@ -16,7 +16,6 @@ import 'package:connectme/features/social/social_repository.dart';
 import 'package:connectme/features/videos/screens/video_feed_screen.dart';
 import 'package:connectme/features/videos/widgets/video_view.dart';
 import 'package:connectme/features/levels/screens/levels_screen.dart';
-import 'package:connectme/features/live/screens/live_list_screen.dart';
 import 'package:connectme/features/onboarding/welcome_screen.dart';
 import 'package:connectme/features/push/screens/notifications_screen.dart';
 import 'package:connectme/features/quiz/screens/compat_quiz_screen.dart';
@@ -55,12 +54,6 @@ Future<Reply> api(RequestOptions o) async {
       });
     case '/push/prefs':
       return Reply(200, {'prefs': {'messages': true, 'quiet': {'on': true, 'start': 1320, 'end': 480}}, 'devices': 0});
-    case '/live/rooms':
-      return Reply(200, {
-        'rooms': [
-          {'id': 'a', 'title': 'A live room with quite a long title to wrap around', 'host_name': 'Someone', 'topic': 'music', 'pinned': 'Requests open for everyone tonight', 'following': true}
-        ]
-      });
     case '/users/me':
       return Reply(200, {'ref': 'r', 'mode': 'open', 'onboarded': false, 'completeness': {'percent': 40, 'next_steps': []}});
   }
@@ -79,7 +72,6 @@ void main() {
     'notifications': const NotificationsScreen(),
     'appearance': const AppearanceScreen(),
     'welcome': const WelcomeScreen(),
-    'live list': const LiveListScreen(),
     'chat list': const ChatListScreen(),
     'safety': const SafetyScreen(),
   };
@@ -197,7 +189,6 @@ void guidelineSuite() {
     'profile': () => const ProfileScreen(),
     'video feed': () => const VideoFeedScreen(),
     'moments feed': () => const FeedScreen(kind: PostKind.moment),
-    'live list': () => const LiveListScreen(),
     'levels': () => const LevelsScreen(),
     'welcome': () => const WelcomeScreen(),
     'appearance': () => const AppearanceScreen(),

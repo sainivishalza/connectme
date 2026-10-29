@@ -25,7 +25,6 @@ const (
 	ActUnban          = "unban_user"
 	ActResolve        = "resolve_report"
 	ActListAudit      = "view_audit_log"
-	ActEndStream      = "end_stream"
 	ActRemovePost     = "remove_post"
 	ActRemoveVideo    = "remove_video"
 	ActRemoveForum    = "remove_forum_post"
@@ -180,14 +179,8 @@ func (s *Service) SetBan(ctx context.Context, a Actor, ref string, ban bool, rea
 	if _, err := s.db.Exec(ctx, `UPDATE users SET is_banned=$2, updated_at=NOW() WHERE id=$1::uuid`, id, ban); err != nil {
 		return err
 	}
-	if ban && s.streams != nil {
-		s.streams.EndByHost(ctx, id) // a banned host's stream stops immediately
-	}
 	if ban && s.calls != nil {
 		s.calls.EndAllFor(ctx, id) // and so do their calls
-	}
-	if ban && s.audio != nil {
-		s.audio.EndAllFor(ctx, id) // and their audio rooms
 	}
 	act := ActBan
 	if !ban {
@@ -297,26 +290,6 @@ func deref(s *string) string {
 		return ""
 	}
 	return *s
-}
-
-// EndStream force-ends a live room. The reason is mandatory and the action is
-// audited against the host.
-func (s *Service) EndStream(ctx context.Context, a Actor, roomID, reason string) error {
-	reason = strings.TrimSpace(reason)
-	if n := len([]rune(reason)); n < 5 || n > 300 {
-		return users.ValidationError{Msg: "a reason of 5-300 characters is required"}
-	}
-	if s.streams == nil {
-		return ErrNotFound
-	}
-	if _, err := uuid.Parse(roomID); err != nil {
-		return ErrNotFound
-	}
-	host, err := s.streams.EndRoom(ctx, roomID)
-	if err != nil {
-		return ErrNotFound
-	}
-	return s.audit(ctx, a, ActEndStream, host, "", map[string]any{"reason": reason, "room": roomID})
 }
 
 // RemovePost deletes a post (moment, universe or missed connection). The reason

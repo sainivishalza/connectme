@@ -10,12 +10,12 @@ import (
 	"connectme/internal/levels"
 )
 
-func (e *env) giftLive(from, roomID, gift string) {
+// giftTo records a gift in the ledger the boards read (the sending flow itself
+// is covered by the payments tests).
+func (e *env) giftTo(from, to, gift string) {
 	e.t.Helper()
-	req := map[string]string{"gift_id": gift, "request_id": uniq("req-gift")}
-	if c, b := e.call("POST", "/live/rooms/"+roomID+"/gift", req, from); c != 200 {
-		e.t.Fatalf("gift: %d %s", c, b)
-	}
+	e.exec(`INSERT INTO gifts_sent (from_user, to_user, gift_id, coins)
+	        SELECT $1::uuid, $2::uuid, id, price_coins FROM gift_catalog WHERE id = $3`, from, to, gift)
 }
 
 type leaderboardJSON struct {
@@ -46,9 +46,8 @@ func (e *env) leaderboard(uid, kind, period string) (int, leaderboardJSON, strin
 
 func TestLevelsAndLeaderboardsComeFromGiftsAndRespectPrivacy(t *testing.T) {
 	e := setup(t)
-	e.exec(`DELETE FROM live_gifts`) // a clean ledger so rankings in this test are exact
+	e.exec(`DELETE FROM gifts_sent`) // a clean ledger so rankings in this test are exact
 	host, host2, fan, fan2, watcher := e.user("Star Host"), e.user("Second Host"), e.user("Big Fan"), e.user("Small Fan"), e.user("Watcher")
-	r1, r2 := e.goLive(host, "Show one"), e.goLive(host2, "Show two")
 	e.grant(fan, 1000)
 	e.grant(fan2, 1000)
 
@@ -58,14 +57,14 @@ func TestLevelsAndLeaderboardsComeFromGiftsAndRespectPrivacy(t *testing.T) {
 		t.Fatalf("start: %s", b)
 	}
 
-	// Gifts: the big fan sends 3 champagne (150 coins, 105 to host 1) and a rose to host 2; the small fan one rose to host 2.
+	// Gifts: the big fan sends 3 champagne (150 coins to host 1) and a rose to host 2; the small fan one rose to host 2.
 	for i := 0; i < 3; i++ {
-		e.giftLive(fan, r1.Room.ID, "champagne")
+		e.giftTo(fan, host, "champagne")
 	}
-	e.giftLive(fan, r2.Room.ID, "rose")
-	e.giftLive(fan2, r2.Room.ID, "rose")
+	e.giftTo(fan, host2, "rose")
+	e.giftTo(fan2, host2, "rose")
 
-	// Host 1 received 105 coins: Charm level 2 (100+). Their own view shows the money; others do not.
+	// Host 1 received 150 coins: Charm level 2 (100+). Their own view shows the money; others do not.
 	_, b = e.call("GET", "/levels/me", nil, host)
 	var mine struct {
 		Charm struct {
@@ -74,7 +73,7 @@ func TestLevelsAndLeaderboardsComeFromGiftsAndRespectPrivacy(t *testing.T) {
 		} `json:"charm"`
 	}
 	_ = json.Unmarshal(b, &mine)
-	if mine.Charm.Level != 2 || mine.Charm.Total != 105 {
+	if mine.Charm.Level != 2 || mine.Charm.Total != 150 {
 		t.Errorf("host charm: %s", b)
 	}
 
@@ -85,7 +84,7 @@ func TestLevelsAndLeaderboardsComeFromGiftsAndRespectPrivacy(t *testing.T) {
 	if hosts.Entries[0].Level.Level != 2 || hosts.Entries[1].Name != "Second Host" {
 		t.Errorf("hosts order/levels: %s", raw)
 	}
-	for _, leak := range []string{"total", "coins", "105", "next_at", "progress"} {
+	for _, leak := range []string{"total", "coins", "150", "next_at", "progress"} {
 		if strings.Contains(raw, `"`+leak+`"`) {
 			t.Errorf("leaderboard leaks %q: %s", leak, raw)
 		}
@@ -142,7 +141,7 @@ func TestLevelsAndLeaderboardsComeFromGiftsAndRespectPrivacy(t *testing.T) {
 			t.Errorf("%s: %d", q, c)
 		}
 	}
-	if _, err := e.db.Exec(context.Background(), `UPDATE live_gifts SET created_at = NOW() - INTERVAL '40 days'`); err != nil {
+	if _, err := e.db.Exec(context.Background(), `UPDATE gifts_sent SET created_at = NOW() - INTERVAL '40 days'`); err != nil {
 		t.Fatal(err)
 	}
 	if _, w, _ := e.leaderboard(fan2, "supporters", "week"); len(w.Entries) != 0 {
@@ -160,11 +159,10 @@ func TestLevelsAndLeaderboardsComeFromGiftsAndRespectPrivacy(t *testing.T) {
 // the very next request, and the viewer's own position is always theirs.
 func TestLeaderboardCacheServesTheRankingButNotBlocksOrPositions(t *testing.T) {
 	e := setup(t)
-	e.exec(`DELETE FROM live_gifts`)
+	e.exec(`DELETE FROM gifts_sent`)
 	host, fan, other := e.user("Cache Host"), e.user("Cache Fan"), e.user("Cache Other")
-	room := e.goLive(host, "Cache show")
 	e.grant(fan, 1000)
-	e.giftLive(fan, room.Room.ID, "rose")
+	e.giftTo(fan, host, "rose")
 
 	levels.CacheTTL = time.Hour
 	t.Cleanup(func() { levels.CacheTTL = 0 })
@@ -177,8 +175,7 @@ func TestLeaderboardCacheServesTheRankingButNotBlocksOrPositions(t *testing.T) {
 	}
 	// A new gift does not show up until the cache expires...
 	host2 := e.user("Cache Host Two")
-	room2 := e.goLive(host2, "Cache show two")
-	e.giftLive(fan, room2.Room.ID, "rose")
+	e.giftTo(fan, host2, "rose")
 	if again, _ := svc.Leaderboard(ctx, other, "hosts", "all", 20); len(again.Entries) != 1 {
 		t.Errorf("cache was not used: %d entries", len(again.Entries))
 	}

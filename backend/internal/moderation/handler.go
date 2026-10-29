@@ -50,7 +50,6 @@ func Routes(svc *Service, rdb *redis.Client, secret []byte) http.Handler {
 	banners.Post("/users/{ref}/ban", h.ban(true))
 	banners.Post("/users/{ref}/unban", h.ban(false))
 	banners.Post("/appeals/{id}/decide", h.decideAppeal)
-	banners.Post("/live/{id}/end", h.endStream)
 	banners.Post("/posts/{id}/remove", h.removePost)
 	banners.Post("/videos/{id}/remove", h.removeVideo)
 	banners.Post("/videos/{id}/approve", h.approveVideo)

@@ -34,12 +34,6 @@ type SessionRevoker interface {
 	RevokeAllForUser(ctx context.Context, userID string) error
 }
 
-// StreamEnder lets moderation stop live streams (implemented by live.Service).
-type StreamEnder interface {
-	EndRoom(ctx context.Context, roomID string) (hostID string, err error)
-	EndByHost(ctx context.Context, hostID string)
-}
-
 // VideoModerator is what staff need from the video feature (videos.Service).
 type VideoModerator interface {
 	StaffRemove(ctx context.Context, id string) (author, kind string, err error)
@@ -62,9 +56,7 @@ type Service struct {
 	db       *pgxpool.Pool
 	users    *users.Service
 	revoker  SessionRevoker
-	streams  StreamEnder
 	calls    CallEnder
-	audio    CallEnder
 	videos   VideoModerator
 	forums   ForumRemover
 	notifier push.Notifier
@@ -81,12 +73,6 @@ func (s *Service) SetForums(f ForumRemover) { s.forums = f }
 
 // SetVideos enables staff removal of videos (nil when videos are off).
 func (s *Service) SetVideos(v VideoModerator) { s.videos = v }
-
-// SetAudio enables ending audio rooms on a ban (nil when audio is off).
-func (s *Service) SetAudio(c CallEnder) { s.audio = c }
-
-// SetStreams enables ending live streams from moderation (nil when live is off).
-func (s *Service) SetStreams(e StreamEnder) { s.streams = e }
 
 func NewService(db *pgxpool.Pool, u *users.Service, r SessionRevoker) *Service {
 	return &Service{db: db, users: u, revoker: r}

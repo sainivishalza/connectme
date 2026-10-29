@@ -174,16 +174,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get sAskWingmanForAReply => 'Pide una respuesta a Wingman';
 
   @override
-  String get sAskTheRoom => 'Pregunta a la sala';
-
-  @override
-  String get sAudioRooms => 'Salas de audio';
-
-  @override
   String get sBack => 'Atrás';
-
-  @override
-  String get sBackToRooms => 'Volver a las salas';
 
   @override
   String get sBlock => 'Bloquear';
@@ -273,16 +264,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get sEditProfile => 'Editar perfil';
 
   @override
-  String get sEnd => 'Terminar';
-
-  @override
   String get sEndGame => 'Terminar el juego';
-
-  @override
-  String get sEndRoom => 'Cerrar la sala';
-
-  @override
-  String get sEndStream => 'Terminar la transmisión';
 
   @override
   String get sEveryone => 'Todos';
@@ -307,9 +289,6 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get sGiftsReceived => 'Regalos recibidos';
-
-  @override
-  String get sGoLive => 'Emitir en directo';
 
   @override
   String get sGroup => 'Grupo';
@@ -363,9 +342,6 @@ class AppLocalizationsEs extends AppLocalizations {
   String get sLevels => 'Niveles';
 
   @override
-  String get sLive => 'En directo';
-
-  @override
   String get sMan => 'Hombre';
 
   @override
@@ -385,9 +361,6 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get sMostLikelyTo => 'Más probable que';
-
-  @override
-  String get sMuteInChat => 'Silenciar en el chat';
 
   @override
   String get sNearbyGroups => 'Grupos cercanos';
@@ -430,19 +403,10 @@ class AppLocalizationsEs extends AppLocalizations {
   String get sOther => 'Otro';
 
   @override
-  String get sPin => 'Fijar';
-
-  @override
-  String get sPinnedMessage => 'Mensaje fijado';
-
-  @override
   String get sPlayAGame => 'Jugar';
 
   @override
   String get sPlayAgain => 'Jugar otra vez';
-
-  @override
-  String get sPoll => 'Encuesta';
 
   @override
   String get sPost => 'Publicar';
@@ -541,22 +505,13 @@ class AppLocalizationsEs extends AppLocalizations {
   String get sSkipForNow => 'Omitir por ahora';
 
   @override
-  String get sStart => 'Empezar';
-
-  @override
   String get sStartAGroup => 'Crear un grupo';
-
-  @override
-  String get sStartARoom => 'Abrir una sala';
 
   @override
   String get sStartARound => 'Empezar una ronda';
 
   @override
   String get sStartAThread => 'Empezar un hilo';
-
-  @override
-  String get sStartStreaming => 'Empezar a transmitir';
 
   @override
   String get sStartTheGame => 'Empezar el juego';

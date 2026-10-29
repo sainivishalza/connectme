@@ -21,7 +21,6 @@ import '../../features/forums/forums_repository.dart';
 import '../../features/forums/screens/board_screen.dart';
 import '../../features/forums/screens/forums_screen.dart';
 import '../../features/forums/screens/thread_screen.dart';
-import '../../features/partners/screens/events_screen.dart';
 import '../../features/push/screens/notifications_screen.dart';
 import '../../features/videos/screens/video_feed_screen.dart';
 import '../../features/audio/audio_repository.dart';
@@ -52,13 +51,11 @@ import '../../features/investors/invest_screen.dart';
 import '../../features/games/screens/most_likely_screen.dart';
 import '../../features/games/screens/party_game_screen.dart';
 import '../../features/onboarding/welcome_screen.dart';
-import '../../features/partners/screens/event_group_screen.dart';
 import '../../features/safety/my_reports_screen.dart';
 import '../../features/safety/safety_screen.dart';
 import '../../features/settings/appearance_screen.dart';
 import '../../features/auth/screens/appeal_screen.dart';
 import '../../features/levels/screens/levels_screen.dart';
-import '../../features/payouts/payouts.dart';
 import '../../features/profile/screens/id_check_screen.dart';
 import '../../features/quiz/screens/compat_quiz_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
@@ -106,7 +103,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/safety/confirm', builder: (_, s) => ContactConfirmScreen(token: s.uri.queryParameters['token'] ?? '')),
       GoRoute(path: '/safety/reports', builder: (_, _) => const MyReportsScreen()),
       GoRoute(path: '/safety', builder: (_, s) => SafetyScreen(matchId: s.uri.queryParameters['match'])),
-      GoRoute(path: '/eventgroup/:id', builder: (_, s) => EventGroupScreen(eventId: s.pathParameters['id']!)),
       GoRoute(path: '/invest', builder: (_, _) => const InvestScreen()),
       GoRoute(path: '/appeal', builder: (_, _) => const AppealScreen()),
       GoRoute(path: '/welcome', builder: (_, _) => const WelcomeScreen()),
@@ -141,7 +137,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/forums', builder: (_, _) => const ForumsScreen()),
       GoRoute(path: '/forums/:slug', builder: (_, s) => BoardScreen(board: s.extra! as Board)),
       GoRoute(path: '/thread/:id', builder: (_, s) => ThreadScreen(threadId: s.pathParameters['id']!)),
-      GoRoute(path: '/events', builder: (_, _) => const EventsScreen()),
       GoRoute(path: '/settings/appearance', builder: (_, _) => const AppearanceScreen()),
       GoRoute(path: '/settings/notifications', builder: (_, _) => const NotificationsScreen()),
       GoRoute(path: '/videos', builder: (_, _) => const VideoFeedScreen()),
@@ -215,7 +210,6 @@ final routerProvider = Provider<GoRouter>((ref) {
                 GoRoute(path: 'prompts', builder: (_, _) => const PromptsScreen()),
                 GoRoute(path: 'quiz', builder: (_, _) => const CompatQuizScreen()),
                 GoRoute(path: 'levels', builder: (_, _) => const LevelsScreen()),
-                GoRoute(path: 'earnings', builder: (_, _) => const EarningsScreen()),
                 GoRoute(path: 'following', builder: (_, _) => const FollowsScreen()),
               ],
             ),

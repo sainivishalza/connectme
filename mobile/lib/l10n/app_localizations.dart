@@ -454,18 +454,6 @@ abstract class AppLocalizations {
   /// **'Block'**
   String get sBlock;
 
-  /// No description provided for @sBook.
-  ///
-  /// In en, this message translates to:
-  /// **'Book'**
-  String get sBook;
-
-  /// No description provided for @sBookings.
-  ///
-  /// In en, this message translates to:
-  /// **'Bookings'**
-  String get sBookings;
-
   /// No description provided for @sCalls.
   ///
   /// In en, this message translates to:
@@ -1125,12 +1113,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Send plan'**
   String get sSendPlan;
-
-  /// No description provided for @sSendRequest.
-  ///
-  /// In en, this message translates to:
-  /// **'Send request'**
-  String get sSendRequest;
 
   /// No description provided for @sSendToChat.
   ///

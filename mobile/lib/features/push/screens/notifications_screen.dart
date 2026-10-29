@@ -138,7 +138,6 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         SwitchListTile(key: const Key('pref_calls'), title: Text(AppLocalizations.of(context)?.sCalls ?? 'Calls'), subtitle: const Text('"Incoming call"'), value: _prefs.calls, onChanged: (v) => _set(_prefs.copyWith(calls: v))),
         SwitchListTile(key: const Key('pref_live'), title: const Text('People you follow go live'), subtitle: const Text('"Someone you follow is live"'), value: _prefs.live, onChanged: (v) => _set(_prefs.copyWith(live: v))),
         SwitchListTile(key: const Key('pref_comments'), title: Text(AppLocalizations.of(context)?.sRepliesToYourPosts ?? 'Replies to your posts'), subtitle: const Text('"Someone replied to your post"'), value: _prefs.comments, onChanged: (v) => _set(_prefs.copyWith(comments: v))),
-        SwitchListTile(key: const Key('pref_bookings'), title: Text(AppLocalizations.of(context)?.sBookings ?? 'Bookings'), subtitle: const Text('"Your booking was updated"'), value: _prefs.bookings, onChanged: (v) => _set(_prefs.copyWith(bookings: v))),
         const Divider(),
         SwitchListTile(
           key: const Key('pref_digest'),

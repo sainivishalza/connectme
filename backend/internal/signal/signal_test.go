@@ -13,8 +13,6 @@ func TestTopicFor(t *testing.T) {
 		"/games/party/" + id + "/pick":            "game:" + id,
 		"/games/td/" + id + "/done":               "game:" + id,
 		"/games/group/" + id + "/mlt/vote":        "game:" + id,
-		"/eventgroups/" + id + "/messages":        "event:" + id,
-		"/eventgroups/messages/" + id + "/report": "",
 		"/chat/matches/" + id + "/messages":       "",
 	}
 	for path, want := range cases {

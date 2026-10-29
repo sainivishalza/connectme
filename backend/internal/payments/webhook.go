@@ -78,7 +78,6 @@ func (s *Service) onCheckout(ctx context.Context, tx pgx.Tx, raw json.RawMessage
 		Metadata      struct {
 			UserID    string `json:"user_id"`
 			PackID    string `json:"pack_id"`
-			BookingID string `json:"booking_id"`
 		} `json:"metadata"`
 	}
 	if err := json.Unmarshal(raw, &o); err != nil {
@@ -86,9 +85,6 @@ func (s *Service) onCheckout(ctx context.Context, tx pgx.Tx, raw json.RawMessage
 	}
 	if o.Mode != "payment" || o.PaymentStatus != "paid" {
 		return nil // subscriptions are handled via subscription.* events
-	}
-	if o.Metadata.BookingID != "" {
-		return s.onBookingPaid(ctx, tx, raw)
 	}
 	pack, ok := PackByID(o.Metadata.PackID)
 	if !ok || o.Metadata.UserID == "" {
@@ -199,9 +195,6 @@ func (s *Service) onRefund(ctx context.Context, tx pgx.Tx, raw json.RawMessage) 
 	if o.PaymentIntent == "" || o.AmountRefunded < o.Amount || o.Amount == 0 {
 		slog.Warn("payments: partial refund noted, no automatic clawback", "charge", o.ID)
 		return nil
-	}
-	if err := s.markBookingRefunded(ctx, tx, o.PaymentIntent); err != nil {
-		return err
 	}
 	var userID string
 	var coins int

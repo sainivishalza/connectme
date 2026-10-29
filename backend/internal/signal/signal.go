@@ -37,8 +37,6 @@ func TopicFor(path string) string {
 		return "masked:" + p[3]
 	case len(p) >= 3 && p[0] == "games" && (p[1] == "td" || p[1] == "party" || p[1] == "group"):
 		return "game:" + p[2]
-	case len(p) >= 3 && p[0] == "eventgroups" && p[2] == "messages":
-		return "event:" + p[1]
 	}
 	return ""
 }
@@ -91,8 +89,6 @@ func (s *Service) Allowed(ctx context.Context, userID, kind, id string) error {
 		q = `SELECT EXISTS(SELECT 1 FROM live_rooms WHERE id=$2::uuid)`
 	case "masked":
 		q = `SELECT EXISTS(SELECT 1 FROM masked_members WHERE room_id=$2::uuid AND user_id=$1::uuid AND left_at IS NULL)`
-	case "event":
-		q = `SELECT EXISTS(SELECT 1 FROM event_rsvps WHERE event_id=$2::uuid AND user_id=$1::uuid)`
 	case "game":
 		q = `SELECT EXISTS(SELECT 1 FROM matches m WHERE m.id=$2::uuid AND m.status='matched' AND $1::uuid IN (m.user1_id, m.user2_id)
 		            AND ` + users.NotBlockedSQL("m.user1_id", "m.user2_id") + `)

@@ -208,7 +208,7 @@ void main() {
     addTearDown(() => t.binding.setSurfaceSize(null));
     await t.pumpWidget(MaterialApp.router(routerConfig: router));
     await t.pumpAndSettle();
-    for (final id in ['moments', 'universe', 'missed', 'groups', 'random', 'masked', 'videos', 'audio', 'forums', 'events', 'live']) {
+    for (final id in ['moments', 'universe', 'missed', 'groups', 'random', 'masked', 'videos', 'audio', 'forums', 'live']) {
       expect(find.byKey(Key('explore_$id')), findsOneWidget);
     }
     await t.tap(find.byKey(const Key('explore_universe')));

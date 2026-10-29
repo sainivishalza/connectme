@@ -189,12 +189,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sBlock => 'Block';
 
   @override
-  String get sBook => 'Book';
-
-  @override
-  String get sBookings => 'Bookings';
-
-  @override
   String get sCalls => 'Calls';
 
   @override
@@ -524,9 +518,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sSendPlan => 'Send plan';
-
-  @override
-  String get sSendRequest => 'Send request';
 
   @override
   String get sSendToChat => 'Send to chat';

@@ -139,7 +139,6 @@ void main() {
     final router = GoRouter(routes: [
       GoRoute(path: '/', builder: (_, _) => const PushRegistrar(child: Scaffold(body: Text('home')))),
       GoRoute(path: '/chats/:id', builder: (_, s) => Scaffold(body: Text('chat ${s.pathParameters['id']}'))),
-      GoRoute(path: '/events', builder: (_, _) => const Scaffold(body: Text('events'))),
     ]);
     await t.pumpWidget(ProviderScope(
       overrides: [apiClientProvider.overrideWithValue(client), pushTokenSourceProvider.overrideWithValue(fake)],
@@ -156,11 +155,6 @@ void main() {
     fake.opened.add(const PushTap(kind: 'message', ref: 'm42'));
     await t.pumpAndSettle();
     expect(find.text('chat m42'), findsOneWidget);
-    router.pop();
-    await t.pumpAndSettle();
-    fake.opened.add(const PushTap(kind: 'booking', ref: 'b1'));
-    await t.pumpAndSettle();
-    expect(find.text('events'), findsOneWidget);
   });
 
   testWidgets('the registrar stays quiet when notifications are not allowed', (t) async {

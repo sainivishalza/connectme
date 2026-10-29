@@ -19,7 +19,6 @@ class ExploreScreen extends StatelessWidget {
     _Tile('masked-room', 'Masked room', 'Three to five strangers, made-up names, truth or dare.', Icons.groups_2_outlined, '/masked-room', 'incognito'),
     _Tile('masked', 'Masked Truth', 'Anonymous truth or dare with a stranger.', Icons.theater_comedy_outlined, '/masked', 'incognito'),
     _Tile('forums', 'Forums', 'Dating advice, travel tips and city boards.', Icons.forum_outlined, '/forums', 'open'),
-    _Tile('events', 'Events and places', 'Hotel mixers, concerts, and venues you can book.', Icons.celebration_outlined, '/events', 'hotel'),
     _Tile('live', 'Live', 'Watch or start a live stream.', Icons.live_tv_outlined, '/live', 'open'),
   ];
 

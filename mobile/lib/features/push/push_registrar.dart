@@ -56,8 +56,6 @@ class _PushRegistrarState extends ConsumerState<PushRegistrar> {
     switch (tap.kind) {
       case 'message' || 'match':
         router.push('/chats/${tap.ref}');
-      case 'booking':
-        router.push('/events');
       case 'report':
         router.push('/safety/reports');
       // A call rings through the incoming-call watcher as soon as the app is open.

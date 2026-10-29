@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../shared/widgets/app_snack.dart';
 import '../../../shared/widgets/states.dart';
@@ -76,16 +75,6 @@ class _Mine extends ConsumerWidget {
         subtitle: const Text('Off by default. Only your level and gift count show, never an amount'),
         value: m.showSupporter,
         onChanged: (x) => _save(context, ref, m, supporter: x),
-      ),
-      const Divider(),
-      ListTile(
-        key: const Key('open_earnings'),
-        contentPadding: EdgeInsets.zero,
-        leading: const Icon(Icons.payments_outlined),
-        title: const Text('Earnings and payouts'),
-        subtitle: const Text('Coins from live gifts, and how to be paid'),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => context.push('/profile/earnings'),
       ),
     ]);
   }

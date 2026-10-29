@@ -136,7 +136,7 @@ async function renderShell() {
   clear($app);
   const main = h('main');
   const tabs = [['queue', 'Queue'], ['idchecks', 'ID checks'], ['reports', 'Reports'], ['users', 'Find a member'], ['rooms', 'Reported rooms'], ['appeals', 'Appeals'], ['trends', 'Trends'], ['live', 'Live streams']];
-  if (state.role === 'admin') tabs.push(['sponsors', 'Sponsors'], ['investors', 'Investors'], ['payouts', 'Host payouts'], ['audit', 'Audit log']);
+  if (state.role === 'admin') tabs.push(['sponsors', 'Sponsors'], ['investors', 'Investors'], ['audit', 'Audit log']);
   const nav = h('nav', { role: 'tablist' }, tabs.map(([id, label]) =>
     h('button', { role: 'tab', 'aria-selected': String(state.tab === id), text: label, onclick: () => { state.tab = id; state.selected = null; renderShell(); } })));
   $app.append(
@@ -157,7 +157,6 @@ async function renderShell() {
   else if (state.tab === 'idchecks') renderIDChecks(body);
   else if (state.tab === 'sponsors' && state.role === 'admin') renderSponsors(body);
   else if (state.tab === 'investors' && state.role === 'admin') renderInvestors(body);
-  else if (state.tab === 'payouts' && state.role === 'admin') renderPayouts(body);
   else renderAudit(body);
 }
 
@@ -229,51 +228,6 @@ function renderIDChecks(root) {
 // ---- Investors (admin) -------------------------------------------------
 // Pledges are confirmed only after the money has arrived outside the app.
 // Confirming changes everyone's percentage, so it asks first and is audited.
-// ---- host payouts -------------------------------------------------------
-// Hosts earn coins from live gifts and ask to be paid. The app moves no money:
-// send it yourself, then record the amount, method and transfer reference here.
-// Rejecting a request frees the gifts so the host can ask again.
-function renderPayouts(root) {
-  const panel = h('div', { class: 'panel' });
-  root.append(panel);
-  async function load() {
-    clear(panel);
-    panel.append(h('div', { class: 'row spread' }, h('h2', { text: 'Host payout requests' }),
-      h('button', { class: 'btn', text: 'Refresh', onclick: load })));
-    let list;
-    try { ({ payouts: list } = await api('/payouts/admin/queue')); }
-    catch (e) { panel.append(h('div', { class: 'error', text: e.message })); return; }
-    if (!list.length) { panel.append(h('div', { class: 'empty', text: 'Nothing waiting.' })); return; }
-    for (const p of list) {
-      const amount = h('input', { type: 'number', min: '1', step: '0.01', placeholder: 'Amount sent (USD)', 'aria-label': 'Amount sent in US dollars' });
-      const method = h('select', { 'aria-label': 'Method' }, ['bank_transfer', 'upi', 'paypal', 'other'].map((m) => h('option', { value: m, text: m.replace('_', ' ') })));
-      const ref = h('input', { placeholder: 'Transfer reference', 'aria-label': 'Transfer reference' });
-      const msg = h('div');
-      const pay = async () => {
-        const cents = Math.round(parseFloat(amount.value) * 100);
-        if (!(cents > 0)) { clear(msg); msg.append(h('div', { class: 'error', text: 'Enter the amount you sent.' })); return; }
-        if (!window.confirm('Record a payment of $' + (cents / 100).toFixed(2) + ' to ' + (p.host_name || 'this host') + '? This cannot be undone.')) return;
-        try { await api('/payouts/admin/' + encodeURIComponent(p.id) + '/pay', { method: 'POST', body: { amount_cents: cents, method: method.value, reference: ref.value.trim() } }); load(); }
-        catch (e) { clear(msg); msg.append(h('div', { class: 'error', text: e.message })); }
-      };
-      const reject = async () => {
-        const reason = window.prompt('Why is this request being turned down? The host sees this.');
-        if (!reason) return;
-        try { await api('/payouts/admin/' + encodeURIComponent(p.id) + '/reject', { method: 'POST', body: { reason } }); load(); }
-        catch (e) { clear(msg); msg.append(h('div', { class: 'error', text: e.message })); }
-      };
-      panel.append(h('div', { class: 'item' },
-        h('div', { class: 'row spread' }, h('b', { text: (p.host_name || 'Host') + ': ' + p.coins + ' coins' }), h('span', { class: 'badge', text: p.status })),
-        h('small', { text: 'Profile ' + p.host_ref + ' · asked ' + when(p.requested_at) }),
-        h('div', { class: 'row' }, amount, method, ref),
-        h('div', { class: 'row' }, h('button', { class: 'btn primary', text: 'I sent the money: record it', onclick: pay }),
-          h('button', { class: 'btn', text: 'Reject', onclick: reject })),
-        msg));
-    }
-  }
-  load();
-}
-
 function renderInvestors(root) {
   const panel = h('div', { class: 'panel' });
   root.append(panel);

@@ -6,6 +6,7 @@ package integration
 import (
 	"bytes"
 	"context"
+	"strings"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -243,4 +244,32 @@ func (e *env) photoStored(id string) bool {
 	}
 	_, err = st.Get(context.Background(), id)
 	return err == nil
+}
+
+// between returns the text between the first a and the next b after it, or "".
+func between(s, a, b string) string {
+	i := strings.Index(s, a)
+	if i < 0 {
+		return ""
+	}
+	s = s[i+len(a):]
+	j := strings.Index(s, b)
+	if j < 0 {
+		return ""
+	}
+	return s[:j]
+}
+
+func (e *env) grantCoins(uid string, n int) {
+	e.t.Helper()
+	e.exec(`INSERT INTO coin_ledger (user_id, delta, reason) VALUES ($1,$2,'test_grant')`, uid, n)
+}
+
+func (e *env) balance(uid string) int {
+	e.t.Helper()
+	var n int
+	if err := e.db.QueryRow(context.Background(), `SELECT COALESCE(SUM(delta),0) FROM coin_ledger WHERE user_id=$1`, uid).Scan(&n); err != nil {
+		e.t.Fatal(err)
+	}
+	return n
 }

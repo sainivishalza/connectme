@@ -10,7 +10,6 @@ import 'package:connectme/features/discovery/widgets/profile_card.dart';
 import 'package:connectme/features/follows/screens/follows_screen.dart';
 import 'package:connectme/features/investors/invest_screen.dart';
 import 'package:connectme/features/profile/screens/profile_screen.dart';
-import 'package:connectme/features/payouts/payouts.dart';
 import 'package:connectme/features/safety/safety_screen.dart';
 import 'package:connectme/features/social/screens/feed_screen.dart';
 import 'package:connectme/features/social/social_repository.dart';
@@ -54,18 +53,6 @@ Future<Reply> api(RequestOptions o) async {
         'answers': <String, dynamic>{},
         'min_shared': 8,
       });
-    case '/payouts/mine':
-      return Reply(200, {
-        'available_coins': 9000,
-        'requested_coins': 5600,
-        'paid_coins': 7000,
-        'can_request': false,
-        'needs_id': 'Verify your ID to receive payouts.',
-        'payouts': [
-          {'id': 'a', 'coins': 7000, 'status': 'paid', 'amount_cents': 7000, 'reference': 'UPI-REFERENCE-WITH-A-LONG-NUMBER-1234567890'},
-          {'id': 'b', 'coins': 5100, 'status': 'rejected', 'note': 'The bank details you gave could not be matched to your name'},
-        ],
-      });
     case '/push/prefs':
       return Reply(200, {'prefs': {'messages': true, 'quiet': {'on': true, 'start': 1320, 'end': 480}}, 'devices': 0});
     case '/live/rooms':
@@ -94,7 +81,6 @@ void main() {
     'welcome': const WelcomeScreen(),
     'live list': const LiveListScreen(),
     'chat list': const ChatListScreen(),
-    'earnings': const EarningsScreen(),
     'safety': const SafetyScreen(),
   };
 

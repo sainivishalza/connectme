@@ -46,9 +46,4 @@ func TestStripeMockAcceptsOurRequests(t *testing.T) {
 	if err := s.Refund(ctx, "pi_123"); err != nil {
 		t.Errorf("Refund: %v", err)
 	}
-	// A booking payment is an ordinary one-off checkout with booking metadata.
-	if _, _, err := s.CreateCheckout(ctx, CheckoutParams{Mode: "payment", ProductName: "Booking: Casa Verde", Cents: 20000, UserID: "u1",
-		Metadata: map[string]string{"user_id": "u1", "booking_id": "b1"}, SuccessURL: "connectme://ok", CancelURL: "connectme://cancel"}); err != nil {
-		t.Errorf("booking checkout rejected by the Stripe spec: %v", err)
-	}
 }

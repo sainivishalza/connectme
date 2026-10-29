@@ -18,7 +18,6 @@ import (
 	"connectme/internal/chat"
 	"connectme/internal/communities"
 	"connectme/internal/digest"
-	"connectme/internal/eventgroups"
 	"connectme/internal/follows"
 	"connectme/internal/forums"
 	"connectme/internal/games"
@@ -32,10 +31,7 @@ import (
 	"connectme/internal/livekit"
 	"connectme/internal/matching"
 	"connectme/internal/moderation"
-	"connectme/internal/partners"
 	"connectme/internal/payments"
-	"connectme/internal/payouts"
-	"connectme/internal/portal"
 	"connectme/internal/privacy"
 	"connectme/internal/push"
 	"connectme/internal/quiz"
@@ -93,10 +89,8 @@ func New(d Deps) *http.Server {
 	usersSvc := newUsers(d)
 	pushSvc := newPush(d)
 	r.Mount("/sounds", sounds.Routes(d.Redis.Client, secret))
-	r.Mount("/payouts", payouts.Routes(payouts.NewService(d.PG), d.Redis.Client, secret))
 	r.Mount("/scamcheck", scamcheck.Routes(scamcheck.NewService(d.PG, scamcheck.NewHTTPChecker(d.Cfg.AIServiceURL, d.Cfg.AIServiceKey)), d.Redis.Client, secret))
 	r.Mount("/signal", signal.Routes(signal.NewService(d.PG), d.Redis.Client, secret))
-	r.Mount("/eventgroups", eventgroups.Routes(eventgroups.NewService(d.PG, usersSvc), d.Redis.Client, secret))
 	r.Mount("/digest", digest.Routes(digest.NewService(d.PG, plainSender{mailer}, secret, d.Cfg.AppURL), d.Redis.Client, secret))
 	safetySvc := safety.NewService(d.PG, usersSvc, plainSender{mailer}, d.Cfg.AppURL)
 	safetySvc.SetSMS(newSMS(d))
@@ -154,9 +148,6 @@ func New(d Deps) *http.Server {
 		r.Mount("/audio", audio.Routes(audioSvc, d.Redis.Client, secret))
 	}
 	r.Mount("/chapters", chapters.Routes(chapters.NewService(d.PG, usersSvc), d.Redis.Client, secret))
-	partnerSvc := partners.NewService(d.PG, usersSvc)
-	partnerSvc.SetNotifier(pushSvc)
-	r.Mount("/partners", partners.Routes(partnerSvc, d.Redis.Client, secret))
 	if d.Cfg.EnableInvestors {
 		invSvc := investors.NewService(d.PG, d.Cfg.InvestorOwnerName, d.Cfg.InvestorPaymentNote)
 		if cents, ok := investors.ParseUSD(d.Cfg.InvestorPriceUSD); ok {
@@ -199,7 +190,6 @@ func New(d Deps) *http.Server {
 		billing = stripeClient
 	}
 	r.Mount("/admin", http.StripPrefix("", admin.Handler()))
-	r.Mount("/partner", http.StripPrefix("", portal.Handler()))
 	privacySvc := privacy.NewService(d.PG, tokens, usersSvc, chatPurger, billing)
 	idSvc := idcheck.NewService(d.PG, newMedia(d, "idcheck"), auth.StubCSAMScanner{})
 	privacySvc.AddFilePurger(idSvc)
@@ -316,7 +306,6 @@ func (p plainSender) Send(ctx context.Context, to, subject, body string) error {
 // StartJobs launches background workers; they stop when ctx is cancelled.
 func StartJobs(ctx context.Context, d Deps) {
 	matching.NewService(d.PG, newUsers(d)).StartRevealJob(ctx, 5*time.Second)
-	eventgroups.NewService(d.PG, nil).StartJob(ctx, time.Hour)
 	games.NewService(d.PG).StartMaskedJob(ctx, 10*time.Minute)
 	digest.NewService(d.PG, plainSender{newMailer(d)}, []byte(d.Cfg.JWTSecret), d.Cfg.AppURL).StartJob(ctx, time.Hour)
 	{

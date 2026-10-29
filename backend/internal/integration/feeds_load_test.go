@@ -15,7 +15,7 @@ import (
 )
 
 // The read paths added in Phases 2 and 3 are the ones every member hits: the
-// post feeds, short videos, forums, partner events and nearby groups. This
+// post feeds, short videos, forums and nearby groups. This
 // seeds a realistic amount of data and hammers them concurrently, reporting
 // latency per endpoint. Opt in with LOAD=1; it deletes what it created.
 func TestFeedsUnderLoad(t *testing.T) {
@@ -39,7 +39,6 @@ func TestFeedsUnderLoad(t *testing.T) {
 			return // leave the data for EXPLAIN work
 		}
 		_, _ = e.db.Exec(ctx, `DELETE FROM users WHERE id = ANY($1::uuid[])`, ids)
-		_, _ = e.db.Exec(ctx, `DELETE FROM partners WHERE name LIKE 'load-%'`)
 		_, _ = e.db.Exec(ctx, `DELETE FROM forum_boards WHERE slug LIKE 'load-%'`)
 	})
 
@@ -82,19 +81,7 @@ func TestFeedsUnderLoad(t *testing.T) {
 		  FROM (SELECT id FROM forum_threads WHERE board=$2) t, generate_series(1, 20) g`, ids, board); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.db.Exec(ctx, `
-		INSERT INTO partners (kind, name, location, commission_bps)
-		SELECT 'restaurant', 'load-' || g, ST_SetSRID(ST_MakePoint($2 + (random()-0.5)*0.2, $1 + (random()-0.5)*0.2),4326)::geography, 1000
-		  FROM generate_series(1, 150) g`, lat0, lng0); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := e.db.Exec(ctx, `
-		INSERT INTO events (partner_id, kind, title, starts_at, ends_at, capacity)
-		SELECT p.id, 'hangout', 'Seeded event ' || g, NOW() + (g || ' hours')::interval, NOW() + ((g + 3) || ' hours')::interval, 50
-		  FROM partners p, generate_series(1, 4) g WHERE p.name LIKE 'load-%'`); err != nil {
-		t.Fatal(err)
-	}
-	e.exec(`ANALYZE posts, videos, forum_threads, forum_replies, partners, events`)
+	e.exec(`ANALYZE posts, videos, forum_threads, forum_replies`)
 
 	endpoints := []struct{ name, path string }{
 		{"moments", "/social/feed?kind=moment&radius_km=25"},
@@ -102,8 +89,6 @@ func TestFeedsUnderLoad(t *testing.T) {
 		{"videos", "/videos/feed"},
 		{"forum threads", "/forums/boards/" + board + "/threads"},
 		{"forum replies", "/forums/threads/" + thread + "/replies"},
-		{"partner events", "/partners/events"},
-		{"partners nearby", "/partners/nearby"},
 		{"groups nearby", "/communities/nearby"},
 	}
 	var mu sync.Mutex

@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"time"
 
-	"connectme/internal/auth"
 	"connectme/internal/entitlements"
 	"connectme/pkg/metrics"
 	"connectme/pkg/middleware"
@@ -39,8 +38,6 @@ func Routes(svc *Service, rdb *redis.Client, secret []byte) http.Handler {
 		r.With(lim("checkout", 20, time.Hour)).Post("/coins", h.coins)
 		r.With(lim("gift", 60, time.Hour)).Post("/gift", h.gift)
 		r.With(lim("cancel", 10, time.Hour)).Post("/cancel", h.cancel)
-		r.With(lim("checkout", 20, time.Hour)).Post("/bookings/{id}/checkout", h.payBooking)
-		r.With(auth.RequirePermission(auth.PermManageHotels), lim("refund", 30, time.Hour)).Post("/bookings/{id}/refund", h.refundBooking)
 	})
 	return r
 }
@@ -178,21 +175,4 @@ func (h *Handler) webhook(w http.ResponseWriter, r *http.Request) {
 		slog.Error("payments: webhook processing failed", "err", err)
 		middleware.WriteError(w, http.StatusInternalServerError, "processing error")
 	}
-}
-
-func (h *Handler) payBooking(w http.ResponseWriter, r *http.Request) {
-	id, url, err := h.svc.PayBooking(r.Context(), uid(r), chi.URLParam(r, "id"))
-	if err != nil {
-		fail(w, err)
-		return
-	}
-	middleware.WriteJSON(w, http.StatusCreated, map[string]string{"session_id": id, "checkout_url": url})
-}
-
-func (h *Handler) refundBooking(w http.ResponseWriter, r *http.Request) {
-	if err := h.svc.RefundBooking(r.Context(), chi.URLParam(r, "id")); err != nil {
-		fail(w, err)
-		return
-	}
-	w.WriteHeader(http.StatusAccepted)
 }

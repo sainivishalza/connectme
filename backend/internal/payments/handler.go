@@ -24,7 +24,9 @@ func Routes(svc *Service, rdb *redis.Client, secret []byte) http.Handler {
 	h := &Handler{svc: svc}
 	r := chi.NewRouter()
 
-	r.With(middleware.MaxBody(256<<10)).Post("/webhook", h.webhook)
+	// Public by design (the Stripe signature is the proof), so it is limited per
+	// address: generous for Stripe, finite for anyone else.
+	r.With(middleware.RateLimit(rdb, "payments:webhook", 600, time.Minute, middleware.ByIP), middleware.MaxBody(256<<10)).Post("/webhook", h.webhook)
 
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.Auth(secret), middleware.MaxBody(8<<10))

@@ -65,3 +65,25 @@ func TestGuessingFromManyAddressesStillLocksTheEmail(t *testing.T) {
 		t.Errorf("a distributed guess run must lock the email for everyone: got %d", c)
 	}
 }
+
+// The Stripe webhook is public (its proof is the signature), so one address
+// must not be able to hammer it: generous for Stripe, finite for everyone else.
+func TestWebhookIsRateLimitedPerAddress(t *testing.T) {
+	e := setup(t)
+	ip := fmt.Sprintf("198.19.%d.%d:9", rand.Intn(250), rand.Intn(250))
+	var last int
+	for i := 0; i < 700; i++ {
+		req := httptest.NewRequest("POST", "/payments/webhook", strings.NewReader("{}"))
+		req.RemoteAddr = ip
+		rec := httptest.NewRecorder()
+		e.h.ServeHTTP(rec, req)
+		last = rec.Code
+		if last == 429 {
+			if rec.Header().Get("Retry-After") == "" {
+				t.Error("429 without Retry-After")
+			}
+			return
+		}
+	}
+	t.Fatalf("700 webhook calls from one address were never limited (last status %d)", last)
+}

@@ -226,3 +226,63 @@ test('a signal reaches only the sockets allowed to watch that topic', async (t) 
   h.rt.signal(`game:${MATCH}`);
   await h.silent(a, 'signal');
 });
+
+// ---- hardening: expiry, connection caps, shared budgets ----
+
+test('a socket is closed once its token has expired and the grace period has passed', async (t) => {
+  const h = await harness(t, { expiryGraceMs: 150 });
+  const s = h.client(sign('alice', { expiresIn: 1 }));
+  await h.ready(s);
+  await h.next(s, 'auth_expired', 3000);
+  await new Promise((res, rej) => {
+    const to = setTimeout(() => rej(new Error('still connected after the grace period')), 2000);
+    s.on('disconnect', () => { clearTimeout(to); res(); });
+  });
+});
+
+test('authenticating again with a fresh token before the grace ends keeps the socket open', async (t) => {
+  const h = await harness(t, { expiryGraceMs: 600 });
+  const s = h.client(sign('alice', { expiresIn: 1 }));
+  await h.ready(s);
+  await h.next(s, 'auth_expired', 3000);
+  assert.deepEqual(await h.emit(s, 'authenticate', { token: sign('alice', { expiresIn: 60 }) }), { ok: true });
+  await new Promise((r) => setTimeout(r, 1000));
+  assert.equal(s.connected, true);
+});
+
+test('one member cannot hold more sockets than the cap', async (t) => {
+  const h = await harness(t, { maxSocketsPerUser: 2 });
+  await h.ready(h.client(sign('alice')));
+  await h.ready(h.client(sign('alice')));
+  await assert.rejects(h.ready(h.client(sign('alice'))), /too_many_connections/);
+  await h.ready(h.client(sign('bob'))); // someone else is not affected
+});
+
+test('one address cannot open connections faster than the limit', async (t) => {
+  const h = await harness(t, { connectsPerMinute: 3 });
+  for (const u of ['u1', 'u2', 'u3']) await h.ready(h.client(sign(u)));
+  await assert.rejects(h.ready(h.client(sign('u4'))), /rate_limited/);
+});
+
+test('the message budget is shared by every relay node when Redis is available', async (t) => {
+  const url = process.env.TEST_REDIS_URL;
+  if (!url) { t.skip('TEST_REDIS_URL not set'); return; }
+  const api = await startApi();
+  const mk = () => createRealtime({ apiBase: api.base, jwtSecret: SECRET, redisUrl: url, messagesPerMinute: 3 });
+  const [a, b] = [await mk(), await mk()];
+  const user = `shared${Date.now()}`;
+  api.state.members.get(MATCH).add(user);
+  const open = async (rt) => {
+    const s = connect(`http://127.0.0.1:${rt.port}`, { auth: { token: sign(user) }, transports: ['websocket'], reconnection: false });
+    await new Promise((res, rej) => { s.on('connect', res); s.on('connect_error', rej); });
+    await new Promise((res) => s.emit('join_match', { match_id: MATCH }, res));
+    return s;
+  };
+  const [sa, sb] = [await open(a), await open(b)];
+  t.after(async () => { sa.close(); sb.close(); await a.close(); await b.close(); api.server.close(); });
+  const send = (s) => new Promise((res) => s.emit('message', { match_id: MATCH, type: 'text', ciphertext: 'eA==' }, res));
+  assert.equal((await send(sa)).ok, true);
+  assert.equal((await send(sb)).ok, true);
+  assert.equal((await send(sa)).ok, true);
+  assert.equal((await send(sb)).error, 'rate_limited', 'the 4th message in a minute must be refused whichever node it lands on');
+});

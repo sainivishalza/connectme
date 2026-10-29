@@ -32,6 +32,10 @@ async function createRealtime(opts) {
   const {
     apiBase, jwtSecret, port = 0, redisUrl = '', allowedOrigins = [],
     accessCacheMs = 20_000, messagesPerMinute = 30, eventsPerMinute = 240,
+    expiryGraceMs = 30_000,      // after a token expires the client gets this long to authenticate again
+    maxSocketsPerUser = 5,       // per node
+    connectsPerMinute = 60,      // per client address
+    trustProxy = false,          // read the client address from X-Forwarded-For (only behind our own load balancer)
   } = opts;
   if (!jwtSecret || jwtSecret.length < 32) throw new Error('JWT_SECRET must be at least 32 characters');
 
@@ -52,12 +56,14 @@ async function createRealtime(opts) {
   });
 
   const cleanup = [];
+  let redis = null; // set when Redis is available: budgets are then shared by every node
   if (redisUrl) {
     const { createClient } = require('redis');
     const { createAdapter } = require('@socket.io/redis-adapter');
     const pub = createClient({ url: redisUrl });
     const sub = pub.duplicate();
     await Promise.all([pub.connect(), sub.connect()]);
+    redis = pub;
     io.adapter(createAdapter(pub, sub)); // multi-node fan-out
     cleanup.push(() => pub.quit(), () => sub.quit());
     // The Go API publishes "this topic changed" here after a write; every
@@ -88,37 +94,38 @@ async function createRealtime(opts) {
     cleanup.push(() => signals.quit());
   }
 
-  // Per-user (not per-socket) sliding window so extra devices cannot bypass it.
-  const sent = new Map();
-  function allowMessage(userId) {
-    const now = Date.now();
-    const arr = (sent.get(userId) || []).filter((t) => now - t < 60_000);
-    if (arr.length >= messagesPerMinute) { sent.set(userId, arr); return false; }
+  // Budgets are per user (not per socket) so extra devices cannot bypass them.
+  // With Redis they are shared by every relay node; if Redis cannot be reached
+  // the answer is "no" (fail closed) rather than an unlimited budget. Without
+  // Redis (tests, a single node) an in-memory sliding window is used.
+  const windows = new Map();
+  async function allow(name, id, limit) {
+    if (redis) {
+      const key = `rt:${name}:${id}:${Math.floor(Date.now() / 60_000)}`;
+      try {
+        const n = await redis.incr(key);
+        if (n === 1) await redis.expire(key, 120);
+        return n <= limit;
+      } catch { return false; }
+    }
+    const k = `${name}:${id}`, now = Date.now();
+    const arr = (windows.get(k) || []).filter((x) => now - x < 60_000);
+    if (arr.length >= limit) { windows.set(k, arr); return false; }
     arr.push(now);
-    sent.set(userId, arr);
+    windows.set(k, arr);
     return true;
   }
+  const allowMessage = (userId) => allow('msg', userId, messagesPerMinute);
   // Every event of a user (typing, receipts, joins and so on) shares one
   // budget, so a socket cannot be used to flood a peer or to hammer the API
   // through the relay. Messages keep their own, stricter limit above.
-  const seen = new Map();
-  function allowEvent(userId) {
-    const now = Date.now();
-    const arr = (seen.get(userId) || []).filter((t) => now - t < 60_000);
-    if (arr.length >= eventsPerMinute) { seen.set(userId, arr); return false; }
-    arr.push(now);
-    seen.set(userId, arr);
-    return true;
-  }
+  const allowEvent = (userId) => allow('evt', userId, eventsPerMinute);
+  const allowConnect = (addr) => allow('conn', addr, connectsPerMinute);
   const sweeper = setInterval(() => {
     const now = Date.now();
-    for (const [u, arr] of sent) {
-      const fresh = arr.filter((t) => now - t < 60_000);
-      if (fresh.length) sent.set(u, fresh); else sent.delete(u);
-    }
-    for (const [u, arr] of seen) {
-      const fresh = arr.filter((t) => now - t < 60_000);
-      if (fresh.length) seen.set(u, fresh); else seen.delete(u);
+    for (const [k, arr] of windows) {
+      const fresh = arr.filter((x) => now - x < 60_000);
+      if (fresh.length) windows.set(k, fresh); else windows.delete(k);
     }
   }, 60_000);
   sweeper.unref();
@@ -154,9 +161,20 @@ async function createRealtime(opts) {
     return false;
   }
 
-  io.use((socket, next) => {
+  const socketsOf = new Map(); // userId -> open sockets on this node
+  const clientAddr = (socket) => {
+    if (trustProxy) {
+      const hops = String(socket.handshake.headers['x-forwarded-for'] || '').split(',').map((h) => h.trim()).filter(Boolean);
+      if (hops.length) return hops[hops.length - 1];
+    }
+    return socket.handshake.address || 'unknown';
+  };
+
+  io.use(async (socket, next) => {
+    if (!(await allowConnect(clientAddr(socket)))) return next(new Error('rate_limited'));
     try {
       const c = verifyAccessToken(socket.handshake.auth && socket.handshake.auth.token, jwtSecret);
+      if ((socketsOf.get(c.sub) || 0) >= maxSocketsPerUser) return next(new Error('too_many_connections'));
       socket.data.userId = c.sub;
       socket.data.token = socket.handshake.auth.token;
       socket.data.exp = c.exp * 1000;
@@ -168,13 +186,42 @@ async function createRealtime(opts) {
     }
   });
 
+  // When the token runs out the client is told, and gets a short grace period
+  // to authenticate again; otherwise the socket is closed. An open socket must
+  // not outlive the session that opened it.
+  // Timers live here, not in socket.data: the Redis adapter serializes
+  // socket.data when it asks other nodes for their sockets.
+  const expiryTimers = new Map(); // socket.id -> { exp, grace }
+  function clearExpiry(socket) {
+    const tm = expiryTimers.get(socket.id);
+    if (tm) { clearTimeout(tm.exp); clearTimeout(tm.grace); expiryTimers.delete(socket.id); }
+  }
+  function armExpiry(socket) {
+    clearExpiry(socket);
+    const tm = {};
+    expiryTimers.set(socket.id, tm);
+    tm.exp = setTimeout(() => {
+      socket.emit('auth_expired');
+      tm.grace = setTimeout(() => socket.disconnect(true), expiryGraceMs);
+      tm.grace.unref();
+    }, Math.max(0, socket.data.exp - Date.now()));
+    tm.exp.unref();
+  }
+
   io.on('connection', (socket) => {
+    socketsOf.set(socket.data.userId, (socketsOf.get(socket.data.userId) || 0) + 1);
+    armExpiry(socket);
+    socket.on('disconnect', () => {
+      clearExpiry(socket);
+      const n =(socketsOf.get(socket.data.userId) || 1) - 1;
+      if (n > 0) socketsOf.set(socket.data.userId, n); else socketsOf.delete(socket.data.userId);
+    });
     // Wraps a handler: payload shape, token expiry, uniform error acks.
     const on = (event, handler) => socket.on(event, async (payload, ack) => {
       const reply = typeof ack === 'function' ? ack : () => {};
       try {
         if (!isObject(payload)) return reply({ ok: false, error: 'invalid' });
-        if (!allowEvent(socket.data.userId)) return reply({ ok: false, error: 'rate_limited' });
+        if (!(await allowEvent(socket.data.userId))) return reply({ ok: false, error: 'rate_limited' });
         if (Date.now() >= socket.data.exp && event !== 'authenticate') {
           socket.emit('auth_expired');
           return reply({ ok: false, error: 'token_expired' });
@@ -191,6 +238,7 @@ async function createRealtime(opts) {
         if (c.sub !== socket.data.userId) return reply({ ok: false, error: 'unauthorized' });
         socket.data.token = p.token;
         socket.data.exp = c.exp * 1000;
+        armExpiry(socket);
         reply({ ok: true });
       } catch {
         reply({ ok: false, error: 'unauthorized' });
@@ -236,7 +284,7 @@ async function createRealtime(opts) {
         return reply({ ok: false, error: 'invalid' });
       }
       if (!socket.rooms.has(roomOf(p.match_id))) return reply({ ok: false, error: 'not_joined' });
-      if (!allowMessage(socket.data.userId)) return reply({ ok: false, error: 'rate_limited' });
+      if (!(await allowMessage(socket.data.userId))) return reply({ ok: false, error: 'rate_limited' });
 
       const body = { type: p.type, ciphertext: p.ciphertext };
       if (p.media_id !== undefined) body.media_id = p.media_id;

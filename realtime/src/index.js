@@ -10,6 +10,7 @@ createRealtime({
   jwtSecret: process.env.JWT_SECRET || '',
   port: Number(process.env.REALTIME_PORT || 3001),
   redisUrl: process.env.REDIS_URL || '',
+  trustProxy: process.env.REALTIME_TRUST_PROXY === 'true', // set only behind our own load balancer
   allowedOrigins: (process.env.APP_ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean),
 }).then((rt) => {
   console.log(`realtime listening on :${rt.port}`);

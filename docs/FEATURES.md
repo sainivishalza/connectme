@@ -36,10 +36,10 @@ Status of every feature in `prompts/0_prd_and_prompts.txt` §4. **Built** means 
 
 | # | Feature | Status | Notes |
 |---|---|---|---|
-| F2.1 | Live streaming | Built, needs LiveKit | with chat, host mute/kick, staff end |
-| F2.2 | Gifts in live streams | Built | 70% host / 30% platform |
+| F2.1 | Live streaming | Removed from the MVP | with chat, host mute/kick, staff end |
+| F2.2 | Gifts in live streams | Removed from the MVP | 70% host / 30% platform |
 | F2.3 | Short video feed | Built, off by default | MP4/MOV up to 30 s, Open-mode posters only, likes, reports, staff review queue. Needs `ENABLE_VIDEO=true`; production also needs a real scanner behind `VIDEO_SCANNER=http` (interface built; ai-service ships a frame-sampling scanner at `/moderate/video` that needs the nudity model; not a certified provider) |
-| F2.4 | Audio rooms | Built, needs LiveKit | host promotes up to 7 speakers, raise hand, anonymous lounges with generated aliases. Media path not run with real audio |
+| F2.4 | Audio rooms | Removed from the MVP | host promotes up to 7 speakers, raise hand, anonymous lounges with generated aliases. Media path not run with real audio |
 | F2.5 | Social games | Built (core) | truth, dare, icebreaker prompts from a curated bank; two-person couple quiz with a hidden-until-both-finish comparison. Truth or dare is turn-based with skips and take-over. Group games: Would you rather and Most likely to. Live rooms have host-run polls. Group truth or dare and masked rooms (3 to 5 strangers) built. Not built: party games with scoring |
 | F2.6 | Nearby groups (interest-based, hotel guests) | Built | members-only posts; interest groups within ~25 km; a group per hotel for people checked in; owner moderation |
 | F2.7 | Little Universe | Built | anonymous nicknames, 48 h posts, nearby |
@@ -57,13 +57,13 @@ Status of every feature in `prompts/0_prd_and_prompts.txt` §4. **Built** means 
 | F3.2 | Mood-based hotel discovery | Built | business / company / local guide per stay; filter and chips |
 | F3.3 | Chapter-based profiles | Built | up to five chapters, visible only where photos are |
 | F3.4 | AI Wingman for group dates (full agent) | Built, needs an API key | a language model plans the outing (venue kinds, icebreakers, a step-by-step plan) from shared interests; strict input cleaning and output validation, templates as the fallback. Never run against the real model |
-| F3.5 | Sponsored live concerts and hotel events | Built (events), not streaming | partner-scheduled events with coin tickets, capacity and refunds. A partner cannot broadcast: streaming stays member-hosted (F2.1) |
+| F3.5 | Sponsored live concerts and hotel events | Removed from the MVP | partner-scheduled events with coin tickets, capacity and refunds. A partner cannot broadcast: streaming stays member-hosted (F2.1) |
 | F3.6 | Event-based group hangouts (hotel mixers) | Built | hotel-guests-only mixers, RSVPs deleted with the stay, attendance as a count |
-| F3.7 | Partner booking with commission | Built (requests, payment, ledger) | booking requests, staff confirm with a price, the member pays through Stripe Checkout, admin refunds, commission and amount owed reported. No automated payout to partners; never run against real Stripe |
+| F3.7 | Partner booking with commission | Removed from the MVP | booking requests, staff confirm with a price, the member pays through Stripe Checkout, admin refunds, commission and amount owed reported. No automated payout to partners; never run against real Stripe |
 
 ## Beyond the PRD
 
-Partner portal (`/partner/`) for venue managers: bookings, events and earnings, scoped to their own partner.
+Partner portal (`/partner/`): removed from the MVP together with partners.
 
 Moderator dashboard, Prometheus metrics, alert rules and a Grafana dashboard, CI, Kubernetes manifests, SMTP email, S3 media storage, password change and sign out everywhere, runbook, draft legal documents, and the redesign. See `DECISIONS.md` for why.
 
@@ -76,7 +76,7 @@ Real ID/liveness and CSAM providers, a content-moderation model, Stripe test key
 |---|---|---|
 | Group-date logistics fee | Built | 100 coins per person for a shared plan (venue kinds, icebreakers, outing steps); refunded if the date is cancelled |
 | Sponsored placements | Built (API-managed) | one labelled card in Moments/Little Universe; Silver+ see none; 3-minute cap; location targeting; totals only |
-| Partner payout ledger | Built | staff record each settlement (paid minus commission); no double payout; partners see history in the portal. Money transfer is still manual |
+| Partner payout ledger | Removed from the MVP | staff record each settlement (paid minus commission); no double payout; partners see history in the portal. Money transfer is still manual |
 | Error tracking | Built | Sentry-compatible, privacy-scrubbed, off without `SENTRY_DSN` |
 | Group game: Would you rather | Built | matched group chats; anonymous totals; one round at a time |
 | Rich profiles | Built | goal, kids, lifestyle, languages, height, job, education, hometown, star sign, 3 prompts; anonymous modes show only lifestyle answers |
@@ -92,9 +92,9 @@ Real ID/liveness and CSAM providers, a content-moderation model, Stripe test key
 | Message search | Built | on-device only (chats are encrypted); jumps to the message |
 | Group Truth or Dare / Masked rooms | Built | turn engine for group chats and anonymous rooms |
 | Sounds on short videos | Built | 8 synthesised loops; no licensing |
-| Live polls (host-run party game) | Built | 2 to 4 answers, totals live |
+| Live polls (host-run party game) | Removed from the MVP | 2 to 4 answers, totals live |
 | Event groups (board for people going to an event) | Built | RSVP is the ticket; deleted a day after |
-| Live room themes | Built | 6 looks; decoration only |
+| Live room themes | Removed from the MVP | 6 looks; decoration only |
 | Timed reveal in anonymous matches | Built | both agree, either can cancel |
 | Weekly summary email | Built | opt-in, numbers only, one-tap unsubscribe |
 | Languages (en, hi, es) | Partly | ~190 labels across most screens; messages with changing parts are English; drafts need native review |
@@ -103,8 +103,8 @@ Real ID/liveness and CSAM providers, a content-moderation model, Stripe test key
 | Appearance settings | Built | theme, text size, reduce motion; device-only |
 | Screen-reader swipe deck | Built | card described; Like/Pass/Super Like as actions |
 | Investor page (pledges, public ownership board) | Built | off unless ENABLE_INVESTORS; no money handled in-app; needs legal review |
-| Live co-hosts | Built | two per room; publish, mute, pin |
-| Gift animations in live rooms | Built | flying icon by gift type |
+| Live co-hosts | Removed from the MVP | two per room; publish, mute, pin |
+| Gift animations in live rooms | Removed from the MVP | flying icon by gift type |
 | Video comments and Following filter | Built | shorts only |
 | Reply notifications | Built | generic, own switch |
 | Quiet hours | Built | per-member window; calls always ring |
@@ -115,15 +115,15 @@ Real ID/liveness and CSAM providers, a content-moderation model, Stripe test key
 | Levels (Charm, Supporter) | Built | derived from gifts; badge on visible profiles; supporter private by default |
 | Leaderboards | Built | top hosts and supporters, week/month/all time; opt-in, visible members only |
 | Follow members | Built | only profiles shown in full; private follower list; block removes |
-| "Followed host is live" push | Built | generic text, own switch |
-| Live topics and pinned message | Built | 7 topics, filter, host pins one line |
+| "Followed host is live" push | Removed from the MVP | generic text, own switch |
+| Live topics and pinned message | Removed from the MVP | 7 topics, filter, host pins one line |
 | Comments on posts | Built | follows post visibility; nicknames under anonymous posts |
 | GIFs and animated stickers | Built | through our server; built-in stickers or Tenor; sent as encrypted attachments |
 
 ## Improvements pass (after Phase F)
 | Item | Status | Notes |
 |---|---|---|
-| Push signals instead of polling | Built | live rooms, games, masked rooms and event boards refetch on a signal; slow polling stays as backup. Needs the realtime relay running |
+| Push signals instead of polling | Built | games and masked rooms refetch on a signal; slow polling stays as backup. Needs the realtime relay running |
 | Cached leaderboards | Built | 30 s, blocks applied fresh |
 | Reveal timer job | Built | checks every 5 s (was 30 s) |
 | Scam warnings in Hindi and Spanish | Built | keyword lists, wording not reviewed by native speakers |
@@ -133,7 +133,7 @@ Real ID/liveness and CSAM providers, a content-moderation model, Stripe test key
 | Bottom bar labels | Built | |
 | Photo order, main photo and captions | Built | captions shown only where the photo is shown |
 | Fixed-price investor model | Built | `INVESTOR_MODEL=fixed`; default stays pro-rata |
-| Host payouts | Built | request, stamp gifts, admin records transfer; no money moves in the app |
+| Host payouts | Removed from the MVP | request, stamp gifts, admin records transfer; no money moves in the app |
 | Staff trends, report reasons, member search | Built | aggregates only; searches audited |
 | Match-score tuning tool and setting | Built | needs real outcome data to be useful |
 | Backup and restore drill | Built | `ops/backup/drill.sh` |
@@ -142,5 +142,6 @@ Real ID/liveness and CSAM providers, a content-moderation model, Stripe test key
 | AI scam check ("Look closer") | Built | member shares the last 8 messages once; rules in three languages; a guide, not a verdict |
 | Text alerts to trusted contacts | Built | code read out by the contact first; Twilio; never run against a real provider |
 | My reports | Built | reporter sees waiting / action taken / no action, never who was reported |
-| Live stage: ask to join, invites, up to 7 guests | Built | needs two real phones to check camera and sound; LiveKit media path never run on a device |
+| Live stage: ask to join, invites, up to 7 guests | Removed from the MVP | needs two real phones to check camera and sound; LiveKit media path never run on a device |
 
+> Rows marked "Removed from the MVP" are cut for the first launch. The code is kept at the git tag `archive/full-scope` (see `docs/PURGE.md`).

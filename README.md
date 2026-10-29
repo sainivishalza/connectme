@@ -1,9 +1,9 @@
 # ConnectMe
 
 A privacy-first dating app with two identities, **Open** and **Incognito**, plus anonymous same-hotel discovery that
-auto-deletes, group dates, end-to-end encrypted chat, live streaming, and coins/subscriptions.
+auto-deletes, group dates, end-to-end encrypted chat, calls, and coins/subscriptions.
 
-> Status: Phase 1 plus the moderator dashboard, observability, live streaming and ops scaffolding are built and tested locally. It is **not launch-ready**: see `docs/AUDIT.md` (what is verified) and
+> Status: Phase 1 plus the moderator dashboard, observability, calls and ops scaffolding are built and tested locally. It is **not launch-ready**: see `docs/AUDIT.md` (what is verified) and
 > `docs/DEPLOYMENT.md` (what you still have to do).
 
 ## Architecture
@@ -28,7 +28,7 @@ Key ideas (details and trade-offs in `docs/DECISIONS.md`):
 ```bash
 cp .env.example .env            # then fill in the passwords and JWT_SECRET (>= 32 bytes) and AI_SERVICE_KEY
 docker compose up -d            # PostGIS, Redis, MongoDB, AI service
-# optional live streaming: docker run -d -p 7880:7880 -e LIVEKIT_KEYS="devkey: <32+ byte secret>" livekit/livekit-server --bind 0.0.0.0
+# optional calls (LiveKit): docker run -d -p 7880:7880 -e LIVEKIT_KEYS="devkey: <32+ byte secret>" livekit/livekit-server --bind 0.0.0.0
 #   then set LIVEKIT_URL=ws://127.0.0.1:7880, LIVEKIT_API_KEY=devkey, LIVEKIT_API_SECRET=<secret> in .env
 
 cd backend  && go run ./cmd/server            # API on :8080 (applies migrations)
@@ -68,6 +68,6 @@ Feature-by-feature status against the PRD is in `docs/FEATURES.md`.
 ## Not in this build
 
 Advertiser self-service and billing for sponsored placements (staff enter them through the API), group games, an AI that joins group chat (blocked by end-to-end encryption), the AI Wingman's language-model mode has never run against a real model (it needs an API key), payouts to partners (booking payments are collected and each settlement is recorded in a ledger, but the money itself is moved by hand), a video-scanner provider (the interface and review queue are built; production refuses videos without a real scanner), the Firebase plugin in the app (push is built on the server and behind an app interface, but never run against Firebase), real CSAM/ID-verification providers, Android/iOS release builds, tracing and error tracking.
-Live streaming (with chat, gifts and host/staff moderation), the moderator dashboard (`/admin/`), metrics/alerts/Grafana (`ops/`) and
+The moderator dashboard (`/admin/`), metrics/alerts/Grafana (`ops/`) and
 Kubernetes manifests (`ops/k8s`) are built and tested locally, but the camera path has not run on a device and the manifests have not
 been applied to a cluster. Privacy policy and terms are drafts (`docs/legal/`). See `docs/AUDIT.md` §3-4.

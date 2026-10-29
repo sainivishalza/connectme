@@ -1,7 +1,7 @@
 # Dev-only monitoring stack: Prometheus (real rules) + Grafana (real dashboard)
 # scraping an API running on the host with METRICS_ADDR=0.0.0.0:9464.
 #   docker compose -f ops/dev/monitoring/docker-compose.yml up -d
-# Prometheus http://localhost:19090  Grafana http://localhost:3000 (admin / admin, local only)
+# Prometheus http://localhost:19090  Grafana http://localhost:3000 (user admin, password from GRAFANA_ADMIN_PASSWORD, local only)
 name: connectme-monitoring
 services:
   prometheus:
@@ -14,7 +14,7 @@ services:
   grafana:
     image: grafana/grafana:latest
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD (any strong value; local use only)}
       GF_AUTH_ANONYMOUS_ENABLED: "false"
     volumes:
       - ./grafana-prov/datasources:/etc/grafana/provisioning/datasources:ro

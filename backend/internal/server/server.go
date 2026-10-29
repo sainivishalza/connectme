@@ -29,6 +29,7 @@ import (
 	"connectme/internal/investors"
 	"connectme/internal/levels"
 	"connectme/internal/live"
+	"connectme/internal/livekit"
 	"connectme/internal/matching"
 	"connectme/internal/moderation"
 	"connectme/internal/partners"
@@ -139,16 +140,16 @@ func New(d Deps) *http.Server {
 	var callSvc *calls.Service
 	var audioSvc *audio.Service
 	if d.Cfg.LiveKitURL != "" {
-		liveSvc = live.NewService(d.PG, live.LiveKit{
+		liveSvc = live.NewService(d.PG, livekit.Client{
 			WSURL: d.Cfg.LiveKitURL, APIKey: d.Cfg.LiveKitAPIKey, APISecret: d.Cfg.LiveKitAPISecret})
 		liveSvc.SetVetter(usersSvc)
 		liveSvc.SetAlerts(followsSvc, pushSvc)
 		r.Mount("/live", live.Routes(liveSvc, d.Redis.Client, secret))
-		callSvc = calls.NewService(d.PG, usersSvc, live.LiveKit{
+		callSvc = calls.NewService(d.PG, usersSvc, livekit.Client{
 			WSURL: d.Cfg.LiveKitURL, APIKey: d.Cfg.LiveKitAPIKey, APISecret: d.Cfg.LiveKitAPISecret})
 		callSvc.SetNotifier(pushSvc)
 		r.Mount("/calls", calls.Routes(callSvc, d.Redis.Client, secret))
-		audioSvc = audio.NewService(d.PG, live.LiveKit{
+		audioSvc = audio.NewService(d.PG, livekit.Client{
 			WSURL: d.Cfg.LiveKitURL, APIKey: d.Cfg.LiveKitAPIKey, APISecret: d.Cfg.LiveKitAPISecret}, usersSvc)
 		r.Mount("/audio", audio.Routes(audioSvc, d.Redis.Client, secret))
 	}

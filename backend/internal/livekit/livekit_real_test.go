@@ -1,4 +1,4 @@
-package live
+package livekit
 
 import (
 	"bytes"
@@ -16,17 +16,17 @@ import (
 // Opt-in: run a real server first, e.g.
 //
 //	docker run --rm -p 7880:7880 -e LIVEKIT_KEYS="devkey: <32+ byte secret>" livekit/livekit-server --bind 0.0.0.0
-//	TEST_LIVEKIT_URL=ws://127.0.0.1:7880 TEST_LIVEKIT_SECRET=<secret> go test ./internal/live -run Real
-func realProvider(t *testing.T) LiveKit {
+//	TEST_LIVEKIT_URL=ws://127.0.0.1:7880 TEST_LIVEKIT_SECRET=<secret> go test ./internal/livekit -run Real
+func realProvider(t *testing.T) Client {
 	t.Helper()
 	url, secret := os.Getenv("TEST_LIVEKIT_URL"), os.Getenv("TEST_LIVEKIT_SECRET")
 	if url == "" || secret == "" {
 		t.Skip("TEST_LIVEKIT_URL / TEST_LIVEKIT_SECRET not set")
 	}
-	return LiveKit{WSURL: url, APIKey: keyOr("devkey"), APISecret: secret}
+	return Client{WSURL: url, APIKey: keyOr("devkey"), APISecret: secret}
 }
 
-func twirp(t *testing.T, l LiveKit, method string, body any, grant map[string]any) (int, string) {
+func twirp(t *testing.T, l Client, method string, body any, grant map[string]any) (int, string) {
 	t.Helper()
 	tok, err := l.sign(jwt.MapClaims{"iss": l.APIKey, "exp": time.Now().Add(time.Minute).Unix(), "video": grant})
 	if err != nil {

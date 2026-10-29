@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"connectme/internal/push"
+	"connectme/internal/livekit"
 	"connectme/internal/users"
 	"connectme/internal/wallet"
 
@@ -40,7 +41,7 @@ type TextVetter interface {
 
 type Service struct {
 	db       *pgxpool.Pool
-	provider Provider
+	provider livekit.Provider
 	vetter   TextVetter
 	alerts   alertSource
 	notify   push.Notifier
@@ -77,7 +78,7 @@ func (s *Service) alertFollowers(hostID, roomID string) {
 // SetVetter enables screening of in-stream chat (nil disables it).
 func (s *Service) SetVetter(v TextVetter) { s.vetter = v }
 
-func NewService(db *pgxpool.Pool, p Provider) *Service { return &Service{db: db, provider: p} }
+func NewService(db *pgxpool.Pool, p livekit.Provider) *Service { return &Service{db: db, provider: p} }
 
 // Room is the public view of a stream. The host is shown by public ref and
 // display name only, and only Open-mode members can host.

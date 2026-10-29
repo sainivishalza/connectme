@@ -1,7 +1,7 @@
-// Package live implements live-stream rooms. Media is carried by LiveKit
-// (WebRTC SFU); this package decides who may broadcast or watch, mints
-// short-lived LiveKit access tokens, and accounts for gifts.
-package live
+// Package livekit is the media-server boundary shared by calls and rooms:
+// it mints short-lived LiveKit access tokens and calls the RoomService API.
+// Media is carried by LiveKit (WebRTC SFU); callers decide who may join.
+package livekit
 
 import (
 	"bytes"
@@ -28,20 +28,20 @@ type Provider interface {
 	Remove(ctx context.Context, room, identity string) error
 }
 
-// LiveKit signs real LiveKit access tokens (HS256 with the API secret) and
+// Client signs real LiveKit access tokens (HS256 with the API secret) and
 // calls the RoomService API to close rooms.
-type LiveKit struct {
+type Client struct {
 	WSURL, APIKey, APISecret string
 	HTTP                     *http.Client
 }
 
-func (l LiveKit) URL() string { return l.WSURL }
+func (l Client) URL() string { return l.WSURL }
 
-func (l LiveKit) sign(claims jwt.MapClaims) (string, error) {
+func (l Client) sign(claims jwt.MapClaims) (string, error) {
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(l.APISecret))
 }
 
-func (l LiveKit) Token(room, identity string, publish bool, ttl time.Duration) (string, error) {
+func (l Client) Token(room, identity string, publish bool, ttl time.Duration) (string, error) {
 	now := time.Now()
 	return l.sign(jwt.MapClaims{
 		"iss": l.APIKey, "sub": identity, "nbf": now.Unix(), "exp": now.Add(ttl).Unix(),
@@ -52,7 +52,7 @@ func (l LiveKit) Token(room, identity string, publish bool, ttl time.Duration) (
 	})
 }
 
-func (l LiveKit) Close(ctx context.Context, room string) error {
+func (l Client) Close(ctx context.Context, room string) error {
 	err := l.twirp(ctx, "DeleteRoom", map[string]string{"room": room}, room)
 	if err != nil && strings.Contains(err.Error(), "404") {
 		return nil // LiveKit creates rooms when the first person connects; nobody came, so nothing to close
@@ -62,18 +62,18 @@ func (l LiveKit) Close(ctx context.Context, room string) error {
 
 // SetPublish lets or stops one participant publishing audio/video (used by
 // audio rooms when the host promotes or demotes a speaker); best effort.
-func (l LiveKit) SetPublish(ctx context.Context, room, identity string, can bool) error {
+func (l Client) SetPublish(ctx context.Context, room, identity string, can bool) error {
 	return l.twirp(ctx, "UpdateParticipant", map[string]any{
 		"room": room, "identity": identity,
 		"permission": map[string]any{"can_subscribe": true, "can_publish": can, "can_publish_data": false},
 	}, room)
 }
 
-func (l LiveKit) Remove(ctx context.Context, room, identity string) error {
+func (l Client) Remove(ctx context.Context, room, identity string) error {
 	return l.twirp(ctx, "RemoveParticipant", map[string]string{"room": room, "identity": identity}, room)
 }
 
-func (l LiveKit) twirp(ctx context.Context, method string, payload any, room string) error {
+func (l Client) twirp(ctx context.Context, method string, payload any, room string) error {
 	tok, err := l.sign(jwt.MapClaims{
 		"iss": l.APIKey, "exp": time.Now().Add(time.Minute).Unix(),
 		"video": map[string]any{"roomCreate": true, "roomAdmin": true, "room": room},

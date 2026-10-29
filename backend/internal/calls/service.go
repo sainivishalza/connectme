@@ -1,5 +1,5 @@
 // Package calls implements one-to-one voice and video calls between matched
-// people. Media is carried by LiveKit (see package live for the provider); this
+// people. Media is carried by LiveKit (see package livekit for the provider); this
 // package decides who may call whom, handles ringing, accept, decline and end,
 // and mints short-lived room tokens.
 //
@@ -15,7 +15,7 @@ import (
 	"log/slog"
 	"time"
 
-	"connectme/internal/live"
+	"connectme/internal/livekit"
 	"connectme/internal/push"
 	"connectme/internal/users"
 	"connectme/pkg/metrics"
@@ -45,7 +45,7 @@ var (
 type Service struct {
 	db       *pgxpool.Pool
 	users    *users.Service
-	provider live.Provider
+	provider livekit.Provider
 	notifier push.Notifier
 	now      func() time.Time
 }
@@ -53,7 +53,7 @@ type Service struct {
 // SetNotifier enables push notifications (nil keeps them off).
 func (s *Service) SetNotifier(n push.Notifier) { s.notifier = n }
 
-func NewService(db *pgxpool.Pool, u *users.Service, p live.Provider) *Service {
+func NewService(db *pgxpool.Pool, u *users.Service, p livekit.Provider) *Service {
 	return &Service{db: db, users: u, provider: p, now: time.Now}
 }
 

@@ -17,7 +17,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"connectme/internal/live"
+	"connectme/internal/livekit"
 	"connectme/internal/users"
 
 	"github.com/google/uuid"
@@ -41,7 +41,7 @@ const (
 )
 
 // Permitter is implemented by providers that can change a connected
-// participant's publish permission (live.LiveKit does).
+// participant's publish permission (livekit.Client does).
 type Permitter interface {
 	SetPublish(ctx context.Context, room, identity string, can bool) error
 }
@@ -53,11 +53,11 @@ type TextVetter interface {
 
 type Service struct {
 	db       *pgxpool.Pool
-	provider live.Provider
+	provider livekit.Provider
 	vetter   TextVetter
 }
 
-func NewService(db *pgxpool.Pool, p live.Provider, v TextVetter) *Service {
+func NewService(db *pgxpool.Pool, p livekit.Provider, v TextVetter) *Service {
 	return &Service{db: db, provider: p, vetter: v}
 }
 

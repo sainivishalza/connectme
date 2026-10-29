@@ -154,7 +154,7 @@ func TestAuditStaffRoutesRejectOrdinaryUsers(t *testing.T) {
 	u := e.user("Ordinary")
 	tok := e.tokenFor(u, "user")
 	for _, r := range routesOf(t, e.h) {
-		if !staffRoutes[r.Method+" "+r.Path] {
+		if !isStaffRoute(r) {
 			continue
 		}
 		rec := e.fire(r.Method, concrete(r.Path), []byte(`{"action":"ban"}`), tok, nil)

@@ -172,3 +172,79 @@ Server pushes: ` + "`message`, `typing`, `read_receipt`, `match_closed`, `auth_e
 		t.Fatal(err)
 	}
 }
+
+// isStaffRoute and isPublicRoute accept the path with or without a trailing
+// slash: the audit lists are written without it and the router registers some
+// routes with it (a mismatch once hid two staff routes from the 403 check).
+func isStaffRoute(r route) bool {
+	return staffRoutes[r.Method+" "+r.Path] || staffRoutes[r.Method+" "+strings.TrimSuffix(r.Path, "/")]
+}
+
+func isPublicRoute(r route) bool {
+	return publicRoutes[r.Method+" "+r.Path] || publicRoutes[r.Method+" "+strings.TrimSuffix(r.Path, "/")]
+}
+
+// Public routes that may report no rate limit (they do no work worth limiting).
+var noLimitOK = map[string]bool{"GET /healthz": true, "GET /readyz": true}
+
+// A table row: | METHOD | `path` | auth | ... (the backticks are matched by "." so the pattern needs no escapes).
+var docRow = regexp.MustCompile(`^[|] ([A-Z]+) [|] .(.+?). [|] (public|user|staff) [|]`)
+
+// TestRouteRegistry makes a security decision unavoidable for every new route:
+// it must be listed in docs/SECURITY_ROUTES.md (regenerate it), have a rate
+// limit, and, when it takes an identifier, a reviewed ownership rule. Staff
+// routes must refuse an ordinary member.
+func TestRouteRegistry(t *testing.T) {
+	e := setup(t)
+	raw, err := os.ReadFile("../../../docs/SECURITY_ROUTES.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc := map[string]string{}
+	for _, l := range strings.Split(strings.ReplaceAll(string(raw), "\r\n", "\n"), "\n") {
+		if m := docRow.FindStringSubmatch(l); m != nil {
+			doc[m[1]+" "+m[2]] = l
+		}
+	}
+	live := map[string]bool{}
+	member := e.user("Registry Member")
+	for _, r := range routesOf(t, e.h) {
+		key := r.Method + " " + r.Path
+		live[key] = true
+		line, ok := doc[key]
+		if !ok {
+			t.Errorf("%s is not in docs/SECURITY_ROUTES.md: make the security decision (auth, ownership, rate limit, role) and regenerate it with UPDATE_SECURITY_ROUTES=1", key)
+			continue
+		}
+		if strings.Contains(line, "UNREVIEWED") {
+			t.Errorf("%s takes an identifier but has no reviewed ownership rule", key)
+		}
+		if isPublicRoute(r) {
+			if !noLimitOK[key] {
+				if _, h := e.probeRoute(r.Method, r.Path, false, ""); h == "" {
+					t.Errorf("public route %s has no rate limit", key)
+				}
+			}
+			continue
+		}
+		if isStaffRoute(r) {
+			code, _ := e.probeRoute(r.Method, r.Path, true, "user")
+			if code != 403 {
+				t.Errorf("staff route %s answered an ordinary member with %d, want 403", key, code)
+			}
+			if _, h := e.probeRoute(r.Method, r.Path, true, "admin"); h == "" {
+				t.Errorf("staff route %s has no rate limit", key)
+			}
+			continue
+		}
+		if _, h := e.probeRoute(r.Method, r.Path, true, "user"); h == "" {
+			t.Errorf("route %s has no rate limit", key)
+		}
+	}
+	for key := range doc {
+		if !live[key] {
+			t.Errorf("docs/SECURITY_ROUTES.md lists %s but the router does not: regenerate the file", key)
+		}
+	}
+	_ = member
+}

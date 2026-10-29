@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"image"
 	"connectme/internal/csam"
 	"bytes"
 	"context"
@@ -136,8 +137,15 @@ func TestIDCheckIsReviewedByAHumanAndImagesAreDeleted(t *testing.T) {
 	var before, after int
 	_ = e.db.QueryRow(context.Background(), `SELECT COUNT(*) FROM staff_audit_log WHERE action='view_id_check'`).Scan(&before)
 	rec := e.fire("GET", "/idcheck/"+id+"/image/id_photo", nil, e.tokenFor(mod, "moderator"), nil)
-	if rec.Code != 200 || rec.Header().Get("Cache-Control") != "no-store" || !bytes.Equal(rec.Body.Bytes(), img) {
+	if rec.Code != 200 || rec.Header().Get("Cache-Control") != "no-store" {
 		t.Errorf("image: %d %q", rec.Code, rec.Header().Get("Cache-Control"))
+	}
+	// What is stored is a cleaned copy (no metadata), not the upload byte for
+	// byte, but it is the same picture: a valid image of the same size.
+	want, _, _ := image.DecodeConfig(bytes.NewReader(img))
+	got, _, err := image.DecodeConfig(bytes.NewReader(rec.Body.Bytes()))
+	if err != nil || got.Width != want.Width || got.Height != want.Height {
+		t.Errorf("stored image is not a valid copy of the upload: %v %+v want %+v", err, got, want)
 	}
 	_ = e.db.QueryRow(context.Background(), `SELECT COUNT(*) FROM staff_audit_log WHERE action='view_id_check'`).Scan(&after)
 	if after != before+1 {

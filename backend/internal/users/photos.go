@@ -1,31 +1,23 @@
 package users
 
 import (
+	"connectme/pkg/uploadcheck"
 	"log/slog"
 
 	"connectme/internal/csam"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"image"
 	_ "image/jpeg" // register decoders for image.DecodeConfig
 	_ "image/png"
-	"net/http"
 	"os"
 	"path/filepath"
 
-	"github.com/disintegration/imaging"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
-const (
-	MaxUploadBytes = 5 << 20
-	maxDimension   = 1080
-	maxSourceSide  = 12000
-	maxSourcePix   = 40_000_000
-)
+const MaxUploadBytes = 5 << 20 // same as uploadcheck.Photo.MaxBytes
 
 // MediaStore persists processed photo bytes. Keys are server-generated.
 type MediaStore interface {
@@ -86,34 +78,24 @@ func (s LocalStore) Delete(_ context.Context, id string) error {
 	return nil
 }
 
-// processImage validates, orients, downsizes and re-encodes an upload as JPEG.
-// Re-encoding drops every metadata block (EXIF/GPS, XMP, ICC comments).
+// processImage validates and cleans an upload with the shared validator
+// (pkg/uploadcheck): type by bytes, size and canvas limits, orientation, resize,
+// and a fresh JPEG that drops EXIF/GPS and anything hidden after the image.
 func processImage(raw []byte) ([]byte, error) {
-	switch http.DetectContentType(raw) {
-	case "image/jpeg", "image/png":
-	default:
+	out, err := uploadcheck.SanitizeImage(raw, uploadcheck.Photo)
+	switch {
+	case err == nil:
+		return out, nil
+	case errors.Is(err, uploadcheck.ErrNotAnImage):
 		return nil, ValidationError{"photo must be a JPEG or PNG image"}
-	}
-	cfg, _, err := image.DecodeConfig(bytes.NewReader(raw))
-	if err != nil {
-		return nil, ValidationError{"photo could not be read"}
-	}
-	if cfg.Width < 1 || cfg.Height < 1 || cfg.Width > maxSourceSide || cfg.Height > maxSourceSide ||
-		cfg.Width*cfg.Height > maxSourcePix {
+	case errors.Is(err, uploadcheck.ErrDimensions):
 		return nil, ValidationError{"photo dimensions are too large"}
-	}
-	img, err := imaging.Decode(bytes.NewReader(raw), imaging.AutoOrientation(true))
-	if err != nil {
+	case errors.Is(err, uploadcheck.ErrTooLarge):
+		return nil, ValidationError{"photo must be up to 5MB"}
+	case errors.Is(err, uploadcheck.ErrUnreadable):
 		return nil, ValidationError{"photo could not be read"}
 	}
-	if b := img.Bounds(); b.Dx() > maxDimension || b.Dy() > maxDimension {
-		img = imaging.Fit(img, maxDimension, maxDimension, imaging.Lanczos)
-	}
-	var out bytes.Buffer
-	if err := imaging.Encode(&out, img, imaging.JPEG, imaging.JPEGQuality(85)); err != nil {
-		return nil, err
-	}
-	return out.Bytes(), nil
+	return nil, err
 }
 
 // UploadPhoto scans, sanitizes, stores and records a photo; returns its metadata.

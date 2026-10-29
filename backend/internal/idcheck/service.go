@@ -12,6 +12,7 @@
 package idcheck
 
 import (
+	"connectme/pkg/uploadcheck"
 	"connectme/internal/csam"
 	"context"
 	"crypto/rand"
@@ -172,6 +173,9 @@ func (s *Service) Submit(ctx context.Context, userID string, idPhoto, selfie []b
 	if err != nil {
 		return err
 	}
+	// Scan the original bytes, then store only a cleaned copy: a fresh JPEG with no
+	// EXIF/GPS and nothing hidden after the image (pkg/uploadcheck).
+	var cleaned [][]byte
 	for _, img := range [][]byte{idPhoto, selfie} {
 		meta := csam.ScanMeta{UserID: userID, Source: "id_check"}
 		verdict, err := s.scanner.Scan(ctx, img, meta)
@@ -186,7 +190,13 @@ func (s *Service) Submit(ctx context.Context, userID string, idPhoto, selfie []b
 			}
 			return users.ValidationError{Msg: "upload rejected"}
 		}
+		clean, err := uploadcheck.SanitizeImage(img, uploadcheck.IDDocument)
+		if err != nil {
+			return users.ValidationError{Msg: "each photo must be a readable JPEG or PNG image of reasonable size"}
+		}
+		cleaned = append(cleaned, clean)
 	}
+	idPhoto, selfie = cleaned[0], cleaned[1]
 	idKey, selfieKey := uuid.NewString(), uuid.NewString()
 	if err := s.store.Put(ctx, idKey, idPhoto); err != nil {
 		return err

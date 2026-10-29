@@ -5,12 +5,25 @@ import 'package:dio/dio.dart';
 
 import 'token_store.dart';
 
+/// Error code the server sends when content moderation cannot run (HTTP 503).
+const moderationUnavailableCode = 'moderation_unavailable';
+
+/// What a person is told when content could not be checked (English fallback;
+/// the localized text comes from AppLocalizations.sModerationUnavailable).
+const moderationUnavailableMessage = "We can't check this right now. Please try again in a moment.";
+
 /// An error from the API or the network, with a message safe to show.
 class ApiException implements Exception {
-  ApiException(this.status, this.message, {this.retryAfter});
+  ApiException(this.status, this.message, {this.retryAfter, this.code});
   final int status;
   final String message;
   final int? retryAfter;
+
+  /// The server's machine-readable error code, when it sent one we know.
+  final String? code;
+
+  /// The server could not check public content (bio, photo, note) right now.
+  bool get isModerationUnavailable => code == moderationUnavailableCode;
 
   bool get isUnauthorized => status == 401;
   bool get isNetwork => status == 0;
@@ -155,6 +168,9 @@ class ApiClient {
     final d = r.data;
     if (d is Map && d['error'] is String) msg = d['error'] as String;
     final ra = int.tryParse(r.headers.value('retry-after') ?? '');
+    if (r.statusCode == 503 && msg == moderationUnavailableCode) {
+      return ApiException(503, moderationUnavailableMessage, retryAfter: ra ?? 5, code: moderationUnavailableCode);
+    }
     return ApiException(r.statusCode ?? 0, msg, retryAfter: ra);
   }
 }

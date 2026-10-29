@@ -7,9 +7,12 @@ import (
 
 func setEnv(t *testing.T, kv map[string]string) {
 	t.Helper()
+	old := ImplementedCSAMProviders
+	ImplementedCSAMProviders = []string{"photodna"}
+	t.Cleanup(func() { ImplementedCSAMProviders = old })
 	for _, k := range []string{"ENV", "POSTGRES_URL", "REDIS_URL", "MONGO_URL", "JWT_SECRET",
 		"JWT_ACCESS_EXPIRY", "JWT_REFRESH_EXPIRY", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "APP_ALLOWED_ORIGINS",
-		"SMTP_HOST", "SMTP_PORT", "SMTP_FROM", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_ALLOW_PLAINTEXT", "LIVEKIT_URL", "CSAM_PROVIDER", "ENABLE_VIDEO", "VIDEO_SCANNER", "VIDEO_SCANNER_URL", "VIDEO_SCANNER_KEY", "PUSH_PROVIDER", "FCM_PROJECT_ID", "FIREBASE_CREDENTIALS"} {
+		"SMTP_HOST", "SMTP_PORT", "SMTP_FROM", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_ALLOW_PLAINTEXT", "LIVEKIT_URL", "CSAM_PROVIDER", "AI_SERVICE_URL", "AI_SERVICE_KEY", "MODERATION_DEV_BYPASS", "AI_TEXT_TIMEOUT_MS", "AI_IMAGE_TIMEOUT_MS", "ENABLE_VIDEO", "VIDEO_SCANNER", "VIDEO_SCANNER_URL", "VIDEO_SCANNER_KEY", "PUSH_PROVIDER", "FCM_PROJECT_ID", "FIREBASE_CREDENTIALS"} {
 		t.Setenv(k, "")
 	}
 	for k, v := range kv {
@@ -20,8 +23,25 @@ func setEnv(t *testing.T, kv map[string]string) {
 func valid() map[string]string {
 	return map[string]string{
 		"POSTGRES_URL": "postgres://x", "REDIS_URL": "redis://x", "MONGO_URL": "mongodb://x",
-		"JWT_SECRET": strings.Repeat("a", 40),
+		"JWT_SECRET": strings.Repeat("a", 40), "ENV": "development",
 	}
+}
+
+// prodOK is a production setup that passes every check. A CSAM adapter is
+// pretended to exist so the other rules can be tested on their own.
+func prodOK(t *testing.T) map[string]string {
+	t.Helper()
+	old := ImplementedCSAMProviders
+	ImplementedCSAMProviders = []string{"photodna"}
+	t.Cleanup(func() { ImplementedCSAMProviders = old })
+	m := valid()
+	m["ENV"] = "production"
+	m["APP_ALLOWED_ORIGINS"] = "https://app.example.com"
+	m["STRIPE_SECRET_KEY"], m["STRIPE_WEBHOOK_SECRET"] = "sk_live_x", "whsec_x"
+	m["SMTP_HOST"], m["SMTP_FROM"] = "smtp.example.com", "ConnectMe <no-reply@example.com>"
+	m["AI_SERVICE_URL"], m["AI_SERVICE_KEY"] = "http://ai-service:8000", "k"
+	m["CSAM_PROVIDER"] = "photodna"
+	return m
 }
 
 func TestLoadOK(t *testing.T) {
@@ -63,7 +83,7 @@ func TestProductionRequiresRealEmailDelivery(t *testing.T) {
 		m["APP_ALLOWED_ORIGINS"] = "https://app.example.com"
 		m["STRIPE_SECRET_KEY"] = "sk_live_x"
 		m["STRIPE_WEBHOOK_SECRET"] = "whsec_x"
-		m["AI_SERVICE_KEY"] = "k"
+		m["AI_SERVICE_URL"], m["AI_SERVICE_KEY"] = "http://ai-service:8000", "k"
 		m["CSAM_PROVIDER"] = "photodna"
 		return m
 	}
@@ -90,7 +110,7 @@ func TestProductionRefusesUnscannedVideo(t *testing.T) {
 	m["APP_ALLOWED_ORIGINS"] = "https://app.example.com"
 	m["STRIPE_SECRET_KEY"] = "sk_live_x"
 	m["STRIPE_WEBHOOK_SECRET"] = "whsec_x"
-	m["AI_SERVICE_KEY"] = "k"
+	m["AI_SERVICE_URL"], m["AI_SERVICE_KEY"] = "http://ai-service:8000", "k"
 	m["CSAM_PROVIDER"] = "photodna"
 	m["SMTP_HOST"], m["SMTP_FROM"] = "smtp.example.com", "ConnectMe <no-reply@example.com>"
 	m["ENABLE_VIDEO"] = "true"
@@ -112,7 +132,7 @@ func TestVideoScannerConfiguration(t *testing.T) {
 		m["APP_ALLOWED_ORIGINS"] = "https://app.example.com"
 		m["STRIPE_SECRET_KEY"] = "sk_live_x"
 		m["STRIPE_WEBHOOK_SECRET"] = "whsec_x"
-		m["AI_SERVICE_KEY"] = "k"
+		m["AI_SERVICE_URL"], m["AI_SERVICE_KEY"] = "http://ai-service:8000", "k"
 		m["CSAM_PROVIDER"] = "photodna"
 		m["SMTP_HOST"], m["SMTP_FROM"] = "smtp.example.com", "ConnectMe <no-reply@example.com>"
 		m["ENABLE_VIDEO"] = "true"
@@ -169,5 +189,90 @@ func TestPushProviderConfiguration(t *testing.T) {
 	}
 	if err := try(map[string]string{"PUSH_PROVIDER": "apns"}); err == nil || !strings.Contains(err.Error(), "PUSH_PROVIDER must be") {
 		t.Errorf("unknown provider: %v", err)
+	}
+}
+
+func TestUnsetENVIsProduction(t *testing.T) {
+	for env, want := range map[string]bool{"": true, "production": true, "staging": true, "prod": true, "Production": true,
+		"development": false, "Development": false, "test": false, " test ": false} {
+		if got := (Config{Env: env}).IsProduction(); got != want {
+			t.Errorf("ENV=%q: IsProduction=%v, want %v", env, got, want)
+		}
+	}
+	m := valid()
+	delete(m, "ENV")
+	setEnv(t, m)
+	_, err := Load()
+	if err == nil || !strings.Contains(err.Error(), "CSAM_PROVIDER") {
+		t.Fatalf("an unset ENV must run the production checks, got %v", err)
+	}
+}
+
+func TestProductionSafetyRules(t *testing.T) {
+	cases := []struct {
+		name   string
+		mutate func(m map[string]string)
+		want   string // substring of the error; "" = must load
+	}{
+		{"everything configured", func(m map[string]string) {}, ""},
+		{"csam provider empty", func(m map[string]string) { m["CSAM_PROVIDER"] = "" }, "CSAM_PROVIDER must be a real provider"},
+		{"csam provider stub", func(m map[string]string) { m["CSAM_PROVIDER"] = "stub" }, "CSAM_PROVIDER must be a real provider"},
+		{"csam provider STUB", func(m map[string]string) { m["CSAM_PROVIDER"] = "STUB" }, "CSAM_PROVIDER must be a real provider"},
+		{"csam provider without an adapter", func(m map[string]string) { m["CSAM_PROVIDER"] = "somevendor" }, "no working adapter"},
+		{"ai url missing", func(m map[string]string) { delete(m, "AI_SERVICE_URL") }, "AI_SERVICE_URL is required"},
+		{"ai key missing", func(m map[string]string) { delete(m, "AI_SERVICE_KEY") }, "AI_SERVICE_KEY is required"},
+		{"dev bypass on", func(m map[string]string) { m["MODERATION_DEV_BYPASS"] = "true" }, "MODERATION_DEV_BYPASS must not be set"},
+		{"jwt secret placeholder", func(m map[string]string) { m["JWT_SECRET"] = "change-me" + strings.Repeat("x", 40) }, "JWT_SECRET"},
+		{"jwt secret short", func(m map[string]string) { m["JWT_SECRET"] = "short" }, "JWT_SECRET"},
+		{"ENV unset", func(m map[string]string) { delete(m, "ENV"); delete(m, "CSAM_PROVIDER") }, "CSAM_PROVIDER"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			m := prodOK(t)
+			c.mutate(m)
+			setEnv(t, m)
+			_, err := Load()
+			switch {
+			case c.want == "" && err != nil:
+				t.Fatalf("rejected: %v", err)
+			case c.want != "" && (err == nil || !strings.Contains(err.Error(), c.want)):
+				t.Fatalf("want an error containing %q, got %v", c.want, err)
+			}
+		})
+	}
+}
+
+func TestAllProblemsAreReportedTogether(t *testing.T) {
+	setEnv(t, map[string]string{"ENV": "production", "POSTGRES_URL": "x", "REDIS_URL": "x", "MONGO_URL": "x", "JWT_SECRET": "short"})
+	_, err := Load()
+	if err == nil {
+		t.Fatal("an empty production setup must not load")
+	}
+	for _, need := range []string{"JWT_SECRET", "AI_SERVICE_URL", "AI_SERVICE_KEY", "CSAM_PROVIDER", "STRIPE_SECRET_KEY", "SMTP_HOST", "APP_ALLOWED_ORIGINS"} {
+		if !strings.Contains(err.Error(), need) {
+			t.Errorf("the list of problems is missing %s: %v", need, err)
+		}
+	}
+}
+
+func TestDevelopmentKeepsItsConveniences(t *testing.T) {
+	m := valid()
+	m["MODERATION_DEV_BYPASS"] = "true"
+	setEnv(t, m)
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("development rejected: %v", err)
+	}
+	if c.CSAMProvider != "stub" || c.AIServiceURL == "" || !c.ModerationDevBypass {
+		t.Errorf("development defaults: csam=%q ai=%q bypass=%v", c.CSAMProvider, c.AIServiceURL, c.ModerationDevBypass)
+	}
+	if c.AITextTimeoutMS != 2000 || c.AIImageTimeoutMS != 6000 {
+		t.Errorf("default timeouts: %d / %d", c.AITextTimeoutMS, c.AIImageTimeoutMS)
+	}
+	m["AI_TEXT_TIMEOUT_MS"], m["AI_IMAGE_TIMEOUT_MS"] = "500", "9000"
+	setEnv(t, m)
+	c, _ = Load()
+	if c.AITextTimeoutMS != 500 || c.AIImageTimeoutMS != 9000 {
+		t.Errorf("configured timeouts: %d / %d", c.AITextTimeoutMS, c.AIImageTimeoutMS)
 	}
 }

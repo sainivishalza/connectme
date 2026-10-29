@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"connectme/internal/csam"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -14,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"connectme/internal/auth"
 	"connectme/internal/idcheck"
 	"connectme/internal/users"
 	"connectme/pkg/middleware"
@@ -45,7 +45,7 @@ func (e *env) idSubmit(uid string, id, selfie []byte) (int, string) {
 
 func (e *env) sweepIDChecks() error {
 	st := users.LocalStore{Dir: filepath.Join(e.deps.Cfg.MediaDir, "idcheck")}
-	return idcheck.NewService(e.db, st, auth.StubCSAMScanner{}).Sweep(context.Background())
+	return idcheck.NewService(e.db, st, csam.Stub{}).Sweep(context.Background())
 }
 
 func idFilesOnDisk(e *env) int {

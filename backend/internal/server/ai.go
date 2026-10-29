@@ -30,6 +30,10 @@ func (a aiAdapter) CheckImage(ctx context.Context, data []byte) (users.Decision,
 	if err != nil {
 		return users.Decision{}, err
 	}
+	if v.Action == "allow" && !v.ScreenedByModel {
+		// Defence in depth: the AI service says no model looked at this image.
+		return users.Decision{}, aiclient.ErrUnavailable
+	}
 	return users.Decision{Action: v.Action, Reason: v.Reason, Categories: v.Categories}, nil
 }
 

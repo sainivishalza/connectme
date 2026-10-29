@@ -45,6 +45,8 @@ func Routes(svc *Service, rdb *redis.Client, secret []byte) http.Handler {
 func fail(w http.ResponseWriter, err error) {
 	var ve users.ValidationError
 	switch {
+	case errors.Is(err, users.ErrModerationUnavailable):
+		middleware.WriteModerationUnavailable(w)
 	case errors.As(err, &ve):
 		middleware.WriteError(w, http.StatusUnprocessableEntity, ve.Msg)
 	case errors.Is(err, ErrNotFound):

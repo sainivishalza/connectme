@@ -1383,6 +1383,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Reviewed: we found nothing that breaks the rules this time.'**
   String get sfOutcomeNone;
+
+  /// No description provided for @sModerationUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'We can\'t check this right now. Please try again in a moment.'**
+  String get sModerationUnavailable;
 }
 
 class _AppLocalizationsDelegate

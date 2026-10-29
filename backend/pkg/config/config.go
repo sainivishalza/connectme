@@ -31,6 +31,9 @@ type Config struct {
 	AIServiceURL        string
 	AIServiceKey        string
 	CSAMProvider        string
+	ModerationDevBypass bool // development only: let content through when screening is down
+	AITextTimeoutMS     int
+	AIImageTimeoutMS    int
 	MediaDir            string
 	StripeAPIBase       string
 	CheckoutSuccessURL  string
@@ -74,7 +77,30 @@ type Config struct {
 	TrustedProxies      []string // CIDRs/IPs of our load balancers (X-Forwarded-For is honoured only from these)
 }
 
-func (c Config) IsProduction() bool { return c.Env == "production" }
+// IsProduction is true for every ENV except "development" and "test",
+// including an unset ENV: a forgotten setting must never switch off the
+// production safety checks.
+func (c Config) IsProduction() bool {
+	switch strings.ToLower(strings.TrimSpace(c.Env)) {
+	case "development", "test":
+		return false
+	}
+	return true
+}
+
+// ImplementedCSAMProviders lists the CSAM_PROVIDER values that have a working
+// adapter. internal/csam registers them; production refuses to start with any
+// other value (a skeleton adapter would reject every upload).
+var ImplementedCSAMProviders []string
+
+func csamImplemented(name string) bool {
+	for _, p := range ImplementedCSAMProviders {
+		if strings.EqualFold(p, name) {
+			return true
+		}
+	}
+	return false
+}
 
 // Load reads .env files (if present) then the process environment, and fails
 // fast with every problem listed so misconfiguration is fixed in one pass.
@@ -86,7 +112,7 @@ func Load() (Config, error) {
 	}
 
 	c := Config{
-		Env:                 get("ENV", "development"),
+		Env:                 strings.ToLower(strings.TrimSpace(os.Getenv("ENV"))),
 		Port:                get("PORT", "8080"),
 		PostgresURL:         os.Getenv("POSTGRES_URL"),
 		RedisURL:            os.Getenv("REDIS_URL"),
@@ -94,9 +120,12 @@ func Load() (Config, error) {
 		JWTSecret:           os.Getenv("JWT_SECRET"),
 		StripeSecretKey:     os.Getenv("STRIPE_SECRET_KEY"),
 		StripeWebhookSecret: os.Getenv("STRIPE_WEBHOOK_SECRET"),
-		AIServiceURL:        get("AI_SERVICE_URL", "http://localhost:8000"),
+		AIServiceURL:        os.Getenv("AI_SERVICE_URL"),
 		AIServiceKey:        os.Getenv("AI_SERVICE_KEY"),
-		CSAMProvider:        get("CSAM_PROVIDER", "stub"),
+		CSAMProvider:        os.Getenv("CSAM_PROVIDER"),
+		ModerationDevBypass: os.Getenv("MODERATION_DEV_BYPASS") == "true",
+		AITextTimeoutMS:     getInt("AI_TEXT_TIMEOUT_MS", 2000),
+		AIImageTimeoutMS:    getInt("AI_IMAGE_TIMEOUT_MS", 6000),
 		MetricsAddr:         get("METRICS_ADDR", "127.0.0.1:9464"),
 		SentryDSN:           os.Getenv("SENTRY_DSN"),
 		GIFProvider:         get("GIF_PROVIDER", "builtin"),
@@ -157,6 +186,15 @@ func Load() (Config, error) {
 	if c.JWTRefreshExpiry, err = duration("JWT_REFRESH_EXPIRY", "168h"); err != nil {
 		errs = append(errs, err)
 	}
+	if !c.IsProduction() {
+		// Development and tests keep the old conveniences.
+		if c.AIServiceURL == "" && os.Getenv("AI_SERVICE_URL") == "" {
+			c.AIServiceURL = "http://localhost:8000"
+		}
+		if c.CSAMProvider == "" {
+			c.CSAMProvider = "stub"
+		}
+	}
 	errs = append(errs, c.validate()...)
 	return c, errors.Join(errs...)
 }
@@ -185,8 +223,14 @@ func (c Config) validate() []error {
 		if len(c.AllowedOrigins) == 0 {
 			errs = append(errs, errors.New("APP_ALLOWED_ORIGINS is required in production"))
 		}
-		if c.AIServiceURL != "" && c.AIServiceKey == "" {
-			errs = append(errs, errors.New("AI_SERVICE_KEY is required in production when AI_SERVICE_URL is set"))
+		if c.AIServiceURL == "" {
+			errs = append(errs, errors.New("AI_SERVICE_URL is required in production (content moderation fails closed without it)"))
+		}
+		if c.AIServiceKey == "" {
+			errs = append(errs, errors.New("AI_SERVICE_KEY is required in production"))
+		}
+		if c.ModerationDevBypass {
+			errs = append(errs, errors.New("MODERATION_DEV_BYPASS must not be set in production"))
 		}
 		if c.SMTPHost == "" || c.SMTPFrom == "" {
 			errs = append(errs, errors.New("SMTP_HOST and SMTP_FROM are required in production (email verification and password reset need real delivery)"))
@@ -194,8 +238,11 @@ func (c Config) validate() []error {
 		if c.SMTPAllowPlaintext {
 			errs = append(errs, errors.New("SMTP_ALLOW_PLAINTEXT must not be set in production"))
 		}
-		if c.CSAMProvider == "" || c.CSAMProvider == "stub" {
+		switch {
+		case c.CSAMProvider == "" || strings.EqualFold(c.CSAMProvider, "stub"):
 			errs = append(errs, errors.New("CSAM_PROVIDER must be a real provider in production (stub accepts everything)"))
+		case !csamImplemented(c.CSAMProvider):
+			errs = append(errs, fmt.Errorf("CSAM_PROVIDER %q has no working adapter yet; production cannot start until one is implemented (docs/CSAM_RUNBOOK.md)", c.CSAMProvider))
 		}
 	}
 	switch c.PushProvider {

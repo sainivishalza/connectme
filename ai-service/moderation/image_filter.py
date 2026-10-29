@@ -41,6 +41,11 @@ def set_classifier(c: Classifier | None) -> None:
     _classifier = c
 
 
+class ModelUnavailable(RuntimeError):
+    """No image model is loaded, so an image cannot be screened. Callers answer
+    503: an unscreened image is never reported as allowed."""
+
+
 def has_classifier() -> bool:
     return _classifier is not None
 
@@ -102,8 +107,10 @@ def check_image(data: bytes) -> ImageVerdict:
                             categories=["known_bad"], screened_by_model=modelled)
 
     if _classifier is None:
-        return ImageVerdict(safe=True, action="allow", reason="No content model configured.",
-                            categories=[], screened_by_model=False)
+        if os.environ.get("ALLOW_UNMODELLED_IMAGES") == "1":  # local development only
+            return ImageVerdict(safe=True, action="allow", reason="No content model configured.",
+                                categories=[], screened_by_model=False)
+        raise ModelUnavailable("no image model configured; refusing to pass an image unscreened")
 
     scores = _classifier(img)
     nud, vio = scores.get("nudity", 0.0), scores.get("violence", 0.0)

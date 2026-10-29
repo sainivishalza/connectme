@@ -16,3 +16,10 @@ func WriteJSON(w http.ResponseWriter, status int, v any) {
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
 }
+
+// WriteModerationUnavailable answers 503 with Retry-After when content cannot
+// be screened. The body code is what the app maps to a friendly message.
+func WriteModerationUnavailable(w http.ResponseWriter) {
+	w.Header().Set("Retry-After", "5")
+	WriteError(w, http.StatusServiceUnavailable, "moderation_unavailable")
+}

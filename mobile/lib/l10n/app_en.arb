@@ -213,5 +213,6 @@
   "sfNoReportsBody": "If someone breaks the rules, report them from their profile or the chat menu. You will see the result here.",
   "sfOutcomePending": "Waiting for a moderator to look.",
   "sfOutcomeAction": "Reviewed: we took action. Thank you for telling us.",
-  "sfOutcomeNone": "Reviewed: we found nothing that breaks the rules this time."
+  "sfOutcomeNone": "Reviewed: we found nothing that breaks the rules this time.",
+  "sModerationUnavailable": "We can't check this right now. Please try again in a moment."
 }

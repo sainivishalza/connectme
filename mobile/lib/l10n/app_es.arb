@@ -213,5 +213,6 @@
   "sfNoReportsBody": "Si alguien incumple las normas, denúncialo desde su perfil o el menú del chat. Aquí verás el resultado.",
   "sfOutcomePending": "Esperando a que un moderador la revise.",
   "sfOutcomeAction": "Revisada: tomamos medidas. Gracias por avisarnos.",
-  "sfOutcomeNone": "Revisada: esta vez no encontramos nada que incumpla las normas."
+  "sfOutcomeNone": "Revisada: esta vez no encontramos nada que incumpla las normas.",
+  "sModerationUnavailable": "No podemos comprobarlo ahora mismo. Inténtalo de nuevo en un momento."
 }

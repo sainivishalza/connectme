@@ -73,6 +73,8 @@ func fail(w http.ResponseWriter, err error) {
 	var ve ValidationError
 	var needs ErrNeedsTier
 	switch {
+	case errors.Is(err, ErrModerationUnavailable):
+		middleware.WriteModerationUnavailable(w)
 	case errors.As(err, &ve):
 		middleware.WriteError(w, http.StatusUnprocessableEntity, ve.Msg)
 	case errors.Is(err, ErrNotFound):

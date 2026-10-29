@@ -34,7 +34,8 @@ def _reset():
     imf.set_classifier(None)
 
 
-def test_valid_images_pass_and_admit_they_were_not_model_screened():
+def test_valid_images_pass_and_admit_they_were_not_model_screened(monkeypatch):
+    monkeypatch.setenv("ALLOW_UNMODELLED_IMAGES", "1")  # development switch
     for data in (png(), jpeg()):
         v = imf.check_image(data)
         assert v.action == "allow"
@@ -72,6 +73,7 @@ def test_known_bad_hash_is_blocked_even_after_resize(tmp_path, monkeypatch):
     small = io.BytesIO()
     img.resize((90, 90)).save(small, "JPEG")
     assert imf.check_image(small.getvalue()).action == "block", "perceptual match must survive resizing"
+    imf.set_classifier(lambda im: {"nudity": 0.0, "violence": 0.0})  # a clean image still passes once a model screens it
     assert imf.check_image(png((255, 255, 255))).action == "allow"
 
 
@@ -129,8 +131,10 @@ def test_moderate_endpoint_and_image_endpoint():
     bad = client.post("/moderate", headers=H, json={"text": "I'm 15", "kind": "bio"}).json()
     assert bad["action"] == "block" and bad["safe"] is False
 
+    assert client.post("/moderate/image", headers=H, content=png()).status_code == 503, "no model: refuse, never allow"
+    imf.set_classifier(lambda im: {"nudity": 0.0, "violence": 0.0})
     img = client.post("/moderate/image", headers=H, content=png())
-    assert img.status_code == 200 and img.json()["action"] == "allow"
+    assert img.status_code == 200 and img.json()["action"] == "allow" and img.json()["screened_by_model"] is True
     assert client.post("/moderate/image", headers=H, content=b"not an image").json()["action"] == "block"
     too_big = client.post("/moderate/image", headers=H, content=b"\xff\xd8\xff" + b"0" * (imf.MAX_BYTES + 5000))
     assert too_big.status_code == 413
@@ -146,3 +150,51 @@ def test_wingman_is_deterministic_and_matches_the_backend_contract():
     assert any("trail running" in s for s in a["icebreakers"])
     assert a["source"] == "ai"
     assert suggest(SuggestRequest(activity="unknown-activity")).venues, "unknown activities fall back to custom ideas"
+
+
+# ---- fail closed: an image that cannot be screened is never "allow" ----
+
+def test_without_a_model_an_image_is_refused_not_allowed(monkeypatch):
+    monkeypatch.delenv("ALLOW_UNMODELLED_IMAGES", raising=False)
+    for data in (png(), jpeg()):
+        with pytest.raises(imf.ModelUnavailable):
+            imf.check_image(data)
+
+
+def test_development_switch_allows_unmodelled_images_and_says_so(monkeypatch):
+    monkeypatch.setenv("ALLOW_UNMODELLED_IMAGES", "1")
+    v = imf.check_image(png())
+    assert v.action == "allow" and v.screened_by_model is False
+
+
+def test_structurally_bad_images_are_blocked_even_without_a_model(monkeypatch):
+    monkeypatch.delenv("ALLOW_UNMODELLED_IMAGES", raising=False)
+    assert imf.check_image(b"").action == "block"
+    assert imf.check_image(b"not an image at all").action == "block"
+
+
+def _client(monkeypatch):
+    from fastapi.testclient import TestClient
+    import main
+    monkeypatch.setenv("AI_SERVICE_KEY", "k")
+    return TestClient(main.app, raise_server_exceptions=False)
+
+
+def test_api_answers_503_when_no_model_is_loaded(monkeypatch):
+    monkeypatch.delenv("ALLOW_UNMODELLED_IMAGES", raising=False)
+    r = _client(monkeypatch).post("/moderate/image", content=png(), headers={"X-Internal-Key": "k"})
+    assert r.status_code == 503, r.text
+
+
+def test_api_answers_503_when_inference_crashes(monkeypatch):
+    def boom(img):
+        raise ValueError("onnx exploded")
+    imf.set_classifier(boom)
+    r = _client(monkeypatch).post("/moderate/image", content=png(), headers={"X-Internal-Key": "k"})
+    assert r.status_code == 503, r.text
+
+
+def test_api_still_blocks_a_bad_image_before_needing_the_model(monkeypatch):
+    monkeypatch.delenv("ALLOW_UNMODELLED_IMAGES", raising=False)
+    r = _client(monkeypatch).post("/moderate/image", content=b"nope", headers={"X-Internal-Key": "k"})
+    assert r.status_code == 200 and r.json()["action"] == "block"

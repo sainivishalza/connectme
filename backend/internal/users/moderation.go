@@ -3,6 +3,7 @@ package users
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 
 	"connectme/pkg/metrics"
@@ -22,25 +23,47 @@ type ContentChecker interface {
 	CheckImage(ctx context.Context, data []byte) (Decision, error)
 }
 
-// SetChecker installs content screening (nil disables it).
+// SetChecker installs content screening.
 func (s *Service) SetChecker(c ContentChecker) { s.checker = c }
+
+// SetDevBypass lets content through unscreened when screening cannot run.
+// It exists for development and tests only: config refuses it in production.
+func (s *Service) SetDevBypass(on bool) { s.devBypass = on }
+
+// ErrModerationUnavailable is returned when public content cannot be screened
+// (no checker configured, the AI service errored or timed out, or the circuit
+// breaker is open). Handlers answer 503 with Retry-After: the content is
+// refused, never let through unchecked.
+var ErrModerationUnavailable = errors.New("moderation_unavailable")
+
+// unavailable is the one place that decides what "cannot screen" means.
+func (s *Service) unavailable(what string, err error) error {
+	if s.devBypass {
+		slog.Warn("moderation: unavailable, letting content through (development bypass)", "what", what, "err", err)
+		return nil
+	}
+	slog.Warn("moderation: unavailable, refusing content", "what", what, "err", err)
+	metrics.Moderation(what, "unavailable")
+	return ErrModerationUnavailable
+}
 
 // VetText applies moderation policy to public text:
 //
 //   - block  -> the request is refused with a safe, generic message;
 //   - review -> the content is accepted but queued for a human (it appears in
 //     the moderators' report queue with no reporter);
-//   - AI service unavailable -> fail OPEN. Screening is a best-effort layer
-//     on top of reports and human review; an outage must not stop people
-//     from using the app. The failure is logged.
+//   - screening unavailable -> the request is refused with
+//     ErrModerationUnavailable (fail closed).
 func (s *Service) VetText(ctx context.Context, userID, kind, text string) error {
-	if s.checker == nil || text == "" {
+	if text == "" {
 		return nil
+	}
+	if s.checker == nil {
+		return s.unavailable(kind, errors.New("no content checker configured"))
 	}
 	d, err := s.checker.CheckText(ctx, kind, text)
 	if err != nil {
-		slog.Warn("moderation: text check unavailable, allowing", "kind", kind, "err", err)
-		return nil
+		return s.unavailable(kind, err)
 	}
 	return s.apply(ctx, userID, kind, text, d)
 }
@@ -48,12 +71,11 @@ func (s *Service) VetText(ctx context.Context, userID, kind, text string) error 
 // VetImage is VetText for uploaded images (kind "photo").
 func (s *Service) VetImage(ctx context.Context, userID string, data []byte) error {
 	if s.checker == nil {
-		return nil
+		return s.unavailable("photo", errors.New("no content checker configured"))
 	}
 	d, err := s.checker.CheckImage(ctx, data)
 	if err != nil {
-		slog.Warn("moderation: image check unavailable, allowing", "err", err)
-		return nil
+		return s.unavailable("photo", err)
 	}
 	metrics.Moderation("photo", d.Action)
 	if d.Action == "block" {
@@ -105,4 +127,13 @@ func orDefault(s, d string) string {
 		return d
 	}
 	return s
+}
+
+// scanFailed refuses an upload whose CSAM scan could not run. Unlike content
+// screening there is no development bypass: the development scanner (csam.Stub)
+// answers "clean" itself.
+func (s *Service) scanFailed(what string, err error) error {
+	slog.Warn("csam: scan unavailable, upload refused", "what", what, "err", err)
+	metrics.Moderation(what, "unavailable")
+	return ErrModerationUnavailable
 }

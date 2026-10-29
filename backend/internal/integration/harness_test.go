@@ -80,7 +80,7 @@ func setup(t *testing.T) *env {
 		}
 	}))
 	t.Cleanup(scanner.Close)
-	cfg := config.Config{Env: "development", JWTSecret: secret, JWTAccessExpiry: 15 * time.Minute,
+	cfg := config.Config{Env: "development", ModerationDevBypass: true, JWTSecret: secret, JWTAccessExpiry: 15 * time.Minute,
 		JWTRefreshExpiry: time.Hour, MediaDir: t.TempDir(), EnableVideo: true, EnableInvestors: true, InvestorOwnerName: "Vishal Saini", InvestorPaymentNote: "Bank transfer details are sent by the owner.", VideoScanner: "http", VideoScannerURL: scanner.URL, VideoScannerKey: "test-key",
 		LiveKitURL: "ws://livekit.test:7880", LiveKitAPIKey: "devkey", LiveKitAPISecret: "livekit-test-secret-at-least-32-bytes!!"}
 	if u, sec := os.Getenv("TEST_LIVEKIT_URL"), os.Getenv("TEST_LIVEKIT_SECRET"); u != "" && sec != "" {

@@ -45,6 +45,9 @@ services:
     build: ./ai-service
     environment:
       AI_SERVICE_KEY: ${AI_SERVICE_KEY:?set AI_SERVICE_KEY in .env}
+      # Development only: without an image model the service answers 503 for every
+      # photo (it never reports an unscreened image as allowed). Set to 1 to override.
+      ALLOW_UNMODELLED_IMAGES: ${ALLOW_UNMODELLED_IMAGES:-0}
     ports: ["127.0.0.1:8000:8000"]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz').status==200 else 1)"]

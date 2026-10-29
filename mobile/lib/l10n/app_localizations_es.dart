@@ -662,4 +662,8 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get sfOutcomeNone =>
       'Revisada: esta vez no encontramos nada que incumpla las normas.';
+
+  @override
+  String get sModerationUnavailable =>
+      'No podemos comprobarlo ahora mismo. Inténtalo de nuevo en un momento.';
 }

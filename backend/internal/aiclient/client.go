@@ -23,8 +23,8 @@ var ErrUnavailable = errors.New("ai service unavailable")
 const (
 	failureThreshold = 5
 	openFor          = 30 * time.Second
-	textTimeout      = 2 * time.Second
-	imageTimeout     = 6 * time.Second
+	defaultTextTimeout  = 2 * time.Second
+	defaultImageTimeout = 6 * time.Second
 	maxResponse      = 1 << 20
 )
 
@@ -34,13 +34,28 @@ type Client struct {
 	http *http.Client
 	now  func() time.Time
 
+	textTimeout  time.Duration
+	imageTimeout time.Duration
+
 	mu        sync.Mutex
 	fails     int
 	openUntil time.Time
 }
 
 func New(baseURL, key string) *Client {
-	return &Client{base: baseURL, key: key, http: &http.Client{}, now: time.Now}
+	return &Client{base: baseURL, key: key, http: &http.Client{}, now: time.Now,
+		textTimeout: defaultTextTimeout, imageTimeout: defaultImageTimeout}
+}
+
+// SetTimeouts overrides how long a text or image moderation call may take.
+// Zero keeps the current value.
+func (c *Client) SetTimeouts(text, image time.Duration) {
+	if text > 0 {
+		c.textTimeout = text
+	}
+	if image > 0 {
+		c.imageTimeout = image
+	}
 }
 
 type Person struct {
@@ -83,7 +98,7 @@ type Verdict struct {
 
 func (c *Client) Score(ctx context.Context, r ScoreRequest) (*ScoreResponse, error) {
 	var out ScoreResponse
-	if err := c.postJSON(ctx, "/score", r, &out, textTimeout); err != nil {
+	if err := c.postJSON(ctx, "/score", r, &out, c.textTimeout); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -91,7 +106,7 @@ func (c *Client) Score(ctx context.Context, r ScoreRequest) (*ScoreResponse, err
 
 func (c *Client) ModerateText(ctx context.Context, kind, text string) (*Verdict, error) {
 	var out Verdict
-	err := c.postJSON(ctx, "/moderate", map[string]string{"text": text, "kind": kind}, &out, textTimeout)
+	err := c.postJSON(ctx, "/moderate", map[string]string{"text": text, "kind": kind}, &out, c.textTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +115,7 @@ func (c *Client) ModerateText(ctx context.Context, kind, text string) (*Verdict,
 
 func (c *Client) ModerateImage(ctx context.Context, data []byte) (*Verdict, error) {
 	var out Verdict
-	err := c.do(ctx, "/moderate/image", "application/octet-stream", data, &out, imageTimeout)
+	err := c.do(ctx, "/moderate/image", "application/octet-stream", data, &out, c.imageTimeout)
 	if err != nil {
 		return nil, err
 	}

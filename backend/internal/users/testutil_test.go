@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"connectme/internal/csam"
 	"connectme/migrations"
 	"connectme/pkg/database"
 	"connectme/pkg/middleware"
@@ -35,11 +36,15 @@ var testSecret = bytes.Repeat([]byte("k"), 40)
 
 type rejectAll struct{}
 
-func (rejectAll) Clean(context.Context, []byte) (bool, error) { return false, nil }
+func (rejectAll) Scan(context.Context, []byte, csam.ScanMeta) (csam.Verdict, error) {
+	return csam.Verdict{Match: true, Reference: "test-hit"}, nil
+}
 
 type allowAll struct{}
 
-func (allowAll) Clean(context.Context, []byte) (bool, error) { return true, nil }
+func (allowAll) Scan(context.Context, []byte, csam.ScanMeta) (csam.Verdict, error) {
+	return csam.Verdict{}, nil
+}
 
 type env struct {
 	t    *testing.T
@@ -68,6 +73,7 @@ func setup(t *testing.T, scan MediaScanner) *env {
 	t.Cleanup(func() { rdb.Close() })
 
 	svc := NewService(db, LocalStore{Dir: t.TempDir()}, scan)
+	svc.SetDevBypass(true) // these tests are about users, not about the AI service
 	r := chi.NewRouter()
 	r.Mount("/users", Routes(svc, rdb, testSecret))
 	r.Mount("/media", MediaRoutes(svc, rdb, testSecret))

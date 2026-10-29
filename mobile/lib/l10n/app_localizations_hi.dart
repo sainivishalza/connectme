@@ -662,4 +662,8 @@ class AppLocalizationsHi extends AppLocalizations {
   @override
   String get sfOutcomeNone =>
       'समीक्षा हो गई: इस बार हमें नियम तोड़ने वाली कोई बात नहीं मिली।';
+
+  @override
+  String get sModerationUnavailable =>
+      'हम अभी इसकी जाँच नहीं कर सकते। कृपया थोड़ी देर बाद फिर कोशिश करें।';
 }

@@ -1,11 +1,13 @@
 package users
 
 import (
+	"log/slog"
+
+	"connectme/internal/csam"
 	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"image"
 	_ "image/jpeg" // register decoders for image.DecodeConfig
 	_ "image/png"
@@ -32,10 +34,8 @@ type MediaStore interface {
 	Delete(ctx context.Context, id string) error
 }
 
-// MediaScanner is the CSAM hash check. It must run before anything is stored.
-type MediaScanner interface {
-	Clean(ctx context.Context, image []byte) (bool, error)
-}
+// MediaScanner is the CSAM check. It must run before anything is stored.
+type MediaScanner = csam.Scanner
 
 // ErrRejectedMedia is returned when a scan matches; callers answer with a
 // generic message and escalate out of band.
@@ -121,11 +121,16 @@ func (s *Service) UploadPhoto(ctx context.Context, userID string, raw []byte) (*
 	if len(raw) == 0 || len(raw) > MaxUploadBytes {
 		return nil, ValidationError{"photo must be up to 5MB"}
 	}
-	clean, err := s.scan.Clean(ctx, raw)
+	scanMeta := csam.ScanMeta{UserID: userID, Source: "profile_photo"}
+	verdict, err := s.scan.Scan(ctx, raw, scanMeta)
 	if err != nil {
-		return nil, fmt.Errorf("media scan: %w", err)
+		// No answer means no upload: an unscanned image is never stored.
+		return nil, s.scanFailed("photo_scan", err)
 	}
-	if !clean {
+	if verdict.Match {
+		if err := csam.RecordHit(ctx, s.db, raw, verdict, scanMeta); err != nil {
+			slog.Error("csam: could not record a match", "err", err)
+		}
 		return nil, ErrRejectedMedia
 	}
 	if err := s.VetImage(ctx, userID, raw); err != nil {

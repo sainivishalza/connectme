@@ -1,6 +1,7 @@
 package users
 
 import (
+	"connectme/internal/csam"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -278,5 +279,49 @@ func TestCSAMMatchBlocksStorage(t *testing.T) {
 	entries, _ := os.ReadDir(e.svc.media.(LocalStore).Dir)
 	if len(entries) != 0 {
 		t.Fatal("rejected media must not be written to disk")
+	}
+	// The hit is recorded without the image, the account is suspended and staff are alerted.
+	var n int
+	_ = e.db.QueryRow(context.Background(), `SELECT COUNT(*) FROM csam_hits WHERE user_id=$1::uuid AND source='profile_photo' AND provider_ref='test-hit' AND length(content_sha256)=64`, u).Scan(&n)
+	if n != 1 {
+		t.Fatalf("csam_hits rows: %d, want 1", n)
+	}
+	var banned bool
+	_ = e.db.QueryRow(context.Background(), `SELECT is_banned FROM users WHERE id=$1::uuid`, u).Scan(&banned)
+	if !banned {
+		t.Fatal("the account must be suspended after a match")
+	}
+	_ = e.db.QueryRow(context.Background(), `SELECT COUNT(*) FROM reports WHERE reported_id=$1::uuid AND reason='csam_hit' AND status='open'`, u).Scan(&n)
+	if n != 1 {
+		t.Fatalf("staff alert (open csam_hit report): %d, want 1", n)
+	}
+}
+
+type brokenScanner struct{}
+
+func (brokenScanner) Scan(context.Context, []byte, csam.ScanMeta) (csam.Verdict, error) {
+	return csam.Verdict{}, csam.ErrUnavailable
+}
+
+// An unscanned image is never stored: a scanner that cannot answer refuses the upload.
+func TestScannerOutageRefusesTheUploadAndStoresNothing(t *testing.T) {
+	e := setup(t, brokenScanner{})
+	u := e.user(true, "Grace", "b")
+	c, b := e.upload(u, jpegBytes(64, 64))
+	if c != 503 || !strings.Contains(string(b), "moderation_unavailable") {
+		t.Fatalf("scanner outage: %d %s", c, b)
+	}
+	me, _ := e.svc.GetMe(context.Background(), u)
+	if len(me.Photos) != 0 {
+		t.Fatal("an unscanned photo was recorded")
+	}
+	entries, _ := os.ReadDir(e.svc.media.(LocalStore).Dir)
+	if len(entries) != 0 {
+		t.Fatal("an unscanned photo was written to disk")
+	}
+	var n int
+	_ = e.db.QueryRow(context.Background(), `SELECT COUNT(*) FROM csam_hits WHERE user_id=$1::uuid`, u).Scan(&n)
+	if n != 0 {
+		t.Fatal("an outage is not a hit")
 	}
 }

@@ -1,13 +1,13 @@
 package integration
 
 import (
+	"connectme/internal/csam"
 	"context"
 	"errors"
 	"fmt"
 	"strings"
 	"testing"
 
-	"connectme/internal/auth"
 	"connectme/internal/geo"
 	"connectme/internal/users"
 )
@@ -172,7 +172,7 @@ func TestHotelLifecycleAndAutoDelete(t *testing.T) {
 	// An unavailable external store must keep the data and retry later.
 	e.exec(`UPDATE hotel_checkins SET auto_delete_at = NOW() - INTERVAL '1 minute' WHERE user_id=$1`, u1)
 	fp := &failingPurger{}
-	failing := geo.NewService(e.db, users.NewService(e.db, nil, auth.StubCSAMScanner{}), fp)
+	failing := geo.NewService(e.db, users.NewService(e.db, nil, csam.Stub{}), fp)
 	if res, err := failing.RunOnce(ctx); err != nil || res.Purged != 0 || fp.calls == 0 {
 		t.Fatalf("failed purge: %+v %v calls=%d", res, err, fp.calls)
 	}
@@ -239,5 +239,5 @@ func TestLeavingTheFenceChecksYouOut(t *testing.T) {
 }
 
 func server_geo(e *env) *geo.Service {
-	return geo.NewService(e.db, users.NewService(e.db, nil, auth.StubCSAMScanner{}))
+	return geo.NewService(e.db, users.NewService(e.db, nil, csam.Stub{}))
 }

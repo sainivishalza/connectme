@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/network/api_client.dart';
+import '../../l10n/app_localizations.dart';
 
 void showMessage(BuildContext context, String message) {
   ScaffoldMessenger.of(context)
@@ -9,7 +10,11 @@ void showMessage(BuildContext context, String message) {
 }
 
 void showError(BuildContext context, Object error) {
-  final msg = error is ApiException ? error.message : 'Something went wrong. Please try again.';
+  final msg = error is ApiException && error.isModerationUnavailable
+      ? (AppLocalizations.of(context)?.sModerationUnavailable ?? moderationUnavailableMessage)
+      : error is ApiException
+          ? error.message
+          : 'Something went wrong. Please try again.';
   showMessage(context, msg);
 }
 

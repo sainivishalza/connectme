@@ -25,6 +25,8 @@ type stubAI struct {
 	scoreIn  []map[string]any
 	badKey   int
 	failing  bool
+	delay    time.Duration // answer slowly (timeout tests)
+	unscreened bool       // image replies say no model looked at the image
 	imageAct string // allow | review | block
 	reasons  []map[string]any
 	replyIn  []string // bodies sent to /wingman/reply
@@ -56,6 +58,11 @@ func (e *env) withAI() *stubAI {
 			http.Error(w, "boom", http.StatusInternalServerError)
 			return
 		}
+		if st.delay > 0 {
+			st.mu.Unlock()
+			time.Sleep(st.delay)
+			st.mu.Lock()
+		}
 		body, _ := io.ReadAll(r.Body)
 		switch r.URL.Path {
 		case "/moderate":
@@ -71,7 +78,7 @@ func (e *env) withAI() *stubAI {
 			}
 			json.NewEncoder(w).Encode(map[string]any{"safe": act == "allow", "action": act, "reason": "This content breaks our community rules.", "categories": []string{"test"}})
 		case "/moderate/image":
-			json.NewEncoder(w).Encode(map[string]any{"safe": st.imageAct == "allow", "action": st.imageAct, "reason": "This image is not allowed.", "categories": []string{"test"}})
+			json.NewEncoder(w).Encode(map[string]any{"safe": st.imageAct == "allow", "action": st.imageAct, "reason": "This image is not allowed.", "categories": []string{"test"}, "screened_by_model": !st.unscreened})
 		case "/wingman/reply":
 			st.replyIn = append(st.replyIn, string(body))
 			json.NewEncoder(w).Encode(map[string]any{"replies": []string{"Sounds great, count me in!", "Which night works for everyone?", "I will bring the snacks, promise."}, "source": "llm"})
@@ -87,6 +94,7 @@ func (e *env) withAI() *stubAI {
 	e.t.Cleanup(st.srv.Close)
 	cfg := e.deps.Cfg
 	cfg.AIServiceURL, cfg.AIServiceKey = st.srv.URL, aiKey
+	cfg.ModerationDevBypass = false // the fake AI service decides, and an outage must refuse
 	e.deps.Cfg = cfg
 	e.h = server.New(e.deps).Handler
 	return st
@@ -191,25 +199,6 @@ func TestBoardGroupAndPhotoModeration(t *testing.T) {
 	}
 }
 
-func TestAIOutageFailsOpenAndBreakerStopsCalls(t *testing.T) {
-	e := setup(t)
-	st := e.withAI()
-	u := e.user("Resilient")
-	st.mu.Lock()
-	st.failing = true
-	st.mu.Unlock()
-
-	for i := 0; i < 12; i++ {
-		if c, b := e.call("PATCH", "/users/me", map[string]string{"bio": "BADWORD but the service is down"}, u); c != 200 {
-			t.Fatalf("outage must not block users (attempt %d): %d %s", i, c, b)
-		}
-	}
-	// The breaker opened after 5 failures: the remaining calls never left the server.
-	if n := st.count("/moderate"); n > 6 {
-		t.Fatalf("breaker did not open: %d calls", n)
-	}
-}
-
 func TestWrongKeyIsTreatedAsOutageNotAsVerdict(t *testing.T) {
 	e := setup(t)
 	st := e.withAI()
@@ -218,8 +207,8 @@ func TestWrongKeyIsTreatedAsOutageNotAsVerdict(t *testing.T) {
 	e.deps.Cfg = cfg
 	e.h = server.New(e.deps).Handler
 	u := e.user("Keyed")
-	if c, _ := e.call("PATCH", "/users/me", map[string]string{"bio": "hello"}, u); c != 200 {
-		t.Fatalf("misconfigured key must fail open: %d", c)
+	if c, b := e.call("PATCH", "/users/me", map[string]string{"bio": "hello"}, u); c != 503 || !strings.Contains(string(b), "moderation_unavailable") {
+		t.Fatalf("misconfigured key must refuse (fail closed): %d %s", c, b)
 	}
 	if st.badKey == 0 {
 		t.Fatal("service should have been called (and rejected the key)")

@@ -16,7 +16,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from matching.scorer import score
 from moderation.content_filter import check_text
 from moderation import onnx_classifier, video_filter
-from moderation.image_filter import MAX_BYTES, check_image, set_classifier
+from moderation.image_filter import MAX_BYTES, ModelUnavailable, check_image, set_classifier
 from schemas import ImageVerdict, ReplyRequest, ReplyResponse, ScamCheckRequest, ScamCheckResponse, ScoreRequest, ScoreResponse, SuggestRequest, SuggestResponse, TextRequest, Verdict
 from scam import detector as scam_detector
 from wingman import llm as wingman_llm
@@ -71,7 +71,14 @@ async def post_moderate_image(request: Request) -> ImageVerdict:
         body.extend(chunk)
         if len(body) > limit:
             raise HTTPException(413, "image too large")
-    v = check_image(bytes(body))
+    try:
+        v = await run_in_threadpool(check_image, bytes(body))
+    except ModelUnavailable as e:
+        log.error("image moderation unavailable: %s", e)
+        raise HTTPException(503, "no image model configured") from e
+    except Exception as e:  # inference failed: never answer "allow" for an image we could not check
+        log.exception("image moderation failed")
+        raise HTTPException(503, "image moderation failed") from e
     log.info("moderate image action=%s categories=%s model=%s", v.action, v.categories, v.screened_by_model)
     return v
 

@@ -12,6 +12,7 @@
 package idcheck
 
 import (
+	"connectme/internal/csam"
 	"context"
 	"crypto/rand"
 	"encoding/json"
@@ -42,9 +43,7 @@ const (
 )
 
 // Scanner is the known-abuse-material check; it runs before anything is stored.
-type Scanner interface {
-	Clean(ctx context.Context, image []byte) (bool, error)
-}
+type Scanner = csam.Scanner
 
 type Store interface {
 	Put(ctx context.Context, id string, data []byte) error
@@ -173,12 +172,17 @@ func (s *Service) Submit(ctx context.Context, userID string, idPhoto, selfie []b
 		return err
 	}
 	for _, img := range [][]byte{idPhoto, selfie} {
-		clean, err := s.scanner.Clean(ctx, img)
+		meta := csam.ScanMeta{UserID: userID, Source: "id_check"}
+		verdict, err := s.scanner.Scan(ctx, img, meta)
 		if err != nil {
-			return fmt.Errorf("scan: %w", err)
+			slog.Warn("idcheck: scanner unavailable, upload refused", "check", checkID, "err", err)
+			return users.ErrModerationUnavailable
 		}
-		if !clean {
-			slog.Error("idcheck: known-abuse hash match, upload blocked", "check", checkID)
+		if verdict.Match {
+			slog.Error("idcheck: known-abuse match, upload blocked", "check", checkID)
+			if err := csam.RecordHit(ctx, s.db, img, verdict, meta); err != nil {
+				slog.Error("csam: could not record a match", "err", err)
+			}
 			return users.ValidationError{Msg: "upload rejected"}
 		}
 	}

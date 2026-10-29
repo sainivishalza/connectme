@@ -1,13 +1,13 @@
 package integration
 
 import (
+	"connectme/internal/csam"
 	"bytes"
 	"context"
 	"encoding/base64"
 	"strings"
 	"testing"
 
-	"connectme/internal/auth"
 	"connectme/internal/geo"
 	"connectme/internal/users"
 
@@ -109,7 +109,7 @@ func TestHotelRetentionPurgesChatAndMedia(t *testing.T) {
 
 	e.call("POST", "/geo/checkout", nil, u1)
 	e.exec(`UPDATE hotel_checkins SET auto_delete_at = NOW() - INTERVAL '1 minute' WHERE user_id=$1`, u1)
-	svc := geo.NewService(e.db, users.NewService(e.db, nil, auth.StubCSAMScanner{}), e.chat)
+	svc := geo.NewService(e.db, users.NewService(e.db, nil, csam.Stub{}), e.chat)
 	if res, err := svc.RunOnce(ctx); err != nil || res.Purged < 1 {
 		t.Fatalf("purge: %+v %v", res, err)
 	}

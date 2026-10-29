@@ -15,6 +15,7 @@ import (
 	"connectme/internal/calls"
 	"connectme/internal/chapters"
 	"connectme/internal/chat"
+	"connectme/internal/csam"
 	"connectme/internal/communities"
 	"connectme/internal/digest"
 	"connectme/internal/follows"
@@ -179,7 +180,7 @@ func New(d Deps) *http.Server {
 	}
 	r.Mount("/admin", http.StripPrefix("", admin.Handler()))
 	privacySvc := privacy.NewService(d.PG, tokens, usersSvc, chatPurger, billing)
-	idSvc := idcheck.NewService(d.PG, newMedia(d, "idcheck"), auth.StubCSAMScanner{})
+	idSvc := idcheck.NewService(d.PG, newMedia(d, "idcheck"), csamScanner(d.Cfg))
 	privacySvc.AddFilePurger(idSvc)
 	r.Mount("/idcheck", idcheck.Routes(idSvc, d.Redis.Client, secret))
 	if videoSvc != nil {
@@ -307,7 +308,7 @@ func StartJobs(ctx context.Context, d Deps) {
 	NewGeo(d, purgers...).StartJob(ctx, time.Minute)
 	random.NewService(d.PG, newUsers(d)).StartJob(ctx, 15*time.Second)
 	social.NewService(d.PG, newUsers(d)).StartJob(ctx, 5*time.Minute)
-	idcheck.NewService(d.PG, newMedia(d, "idcheck"), auth.StubCSAMScanner{}).StartJob(ctx, 10*time.Minute)
+	idcheck.NewService(d.PG, newMedia(d, "idcheck"), csamScanner(d.Cfg)).StartJob(ctx, 10*time.Minute)
 }
 
 // newAI returns the AI client, or nil when no AI service is configured.
@@ -315,7 +316,9 @@ func newAI(d Deps) *aiclient.Client {
 	if d.Cfg.AIServiceURL == "" {
 		return nil
 	}
-	return aiclient.New(d.Cfg.AIServiceURL, d.Cfg.AIServiceKey)
+	c := aiclient.New(d.Cfg.AIServiceURL, d.Cfg.AIServiceKey)
+	c.SetTimeouts(time.Duration(d.Cfg.AITextTimeoutMS)*time.Millisecond, time.Duration(d.Cfg.AIImageTimeoutMS)*time.Millisecond)
+	return c
 }
 
 // newMedia returns the blob store for a namespace: an S3-compatible bucket
@@ -339,7 +342,8 @@ func newMedia(d Deps, ns string) users.MediaStore {
 
 // newUsers builds the users service with content moderation attached.
 func newUsers(d Deps) *users.Service {
-	u := users.NewService(d.PG, newMedia(d, "photos"), auth.StubCSAMScanner{})
+	u := users.NewService(d.PG, newMedia(d, "photos"), csamScanner(d.Cfg))
+	u.SetDevBypass(d.Cfg.ModerationDevBypass && !d.Cfg.IsProduction())
 	if ai := newAI(d); ai != nil {
 		u.SetChecker(aiAdapter{ai})
 	}
@@ -406,4 +410,15 @@ func newGIFProvider(c config.Config) gifs.Provider {
 		return nil
 	}
 	return gifs.NewBuiltin()
+}
+
+// csamScanner builds the image scanner named by CSAM_PROVIDER. Config
+// validation already refuses a production start without a real provider; this
+// stops the process too if the name is wrong.
+func csamScanner(c config.Config) csam.Scanner {
+	sc, err := csam.New(c.CSAMProvider, c.IsProduction())
+	if err != nil {
+		panic("csam: " + err.Error())
+	}
+	return sc
 }

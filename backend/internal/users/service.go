@@ -28,6 +28,7 @@ type Service struct {
 	now   func() time.Time
 
 	checker ContentChecker // optional AI moderation
+	devBypass bool // development only: screening failures let content through
 }
 
 func NewService(db *pgxpool.Pool, media MediaStore, scan MediaScanner) *Service {
